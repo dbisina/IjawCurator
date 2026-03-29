@@ -1,0 +1,164 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "username": { "type": "string" },
+        "username_lowercase": { "type": "string" },
+        "preferredDialect": { "type": "string" },
+        "points": { "type": "integer" },
+        "contributions": { "type": "integer" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "A mutual friendship between two users",
+      "type": "object",
+      "properties": {
+        "users": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["users", "createdAt"]
+    },
+    "FriendRequest": {
+      "title": "FriendRequest",
+      "description": "A request to become friends",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "fromName": { "type": "string" },
+        "toId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromId", "toId", "status", "createdAt"]
+    },
+    "Word": {
+      "title": "Word",
+      "description": "A word in a specific Ijaw dialect",
+      "type": "object",
+      "properties": {
+        "dialect": { "type": "string" },
+        "word": { "type": "string" },
+        "meaning": { "type": "string" },
+        "pronunciation": { "type": "string" },
+        "isAiGenerated": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending", "verified", "flagged"] },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dialect", "word", "meaning"]
+    },
+    "Correction": {
+      "title": "Correction",
+      "description": "A user-submitted correction for a word",
+      "type": "object",
+      "properties": {
+        "wordId": { "type": "string" },
+        "suggestedWord": { "type": "string" },
+        "suggestedMeaning": { "type": "string" },
+        "suggestedPronunciation": { "type": "string" },
+        "reason": { "type": "string" },
+        "submittedBy": { "type": "string" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+      },
+      "required": ["wordId", "submittedBy"]
+    },
+    "VoiceExercise": {
+      "title": "Voice Exercise",
+      "description": "Voice recording for language learning and AI training",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "wordId": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "dialect": { "type": "string" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "verified", "flagged"] }
+      },
+      "required": ["userId", "wordId", "audioUrl", "submittedAt", "status"]
+    },
+    "ActivityLog": {
+      "title": "Activity Log",
+      "description": "Log of administrative and user actions",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "userId", "timestamp"]
+    },
+    "ChatSession": {
+      "title": "Chat Session",
+      "description": "A translation task where AI speaks English and user responds in Ijaw",
+      "type": "object",
+      "properties": {
+        "englishPhrase": { "type": "string" },
+        "ijawTranslation": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "userId": { "type": "string" },
+        "dialect": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "verified", "flagged"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["englishPhrase", "userId", "dialect", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/words/{wordId}": {
+      "schema": "Word",
+      "description": "Language dataset"
+    },
+    "/corrections/{correctionId}": {
+      "schema": "Correction",
+      "description": "User corrections"
+    },
+    "/voiceExercises/{exerciseId}": {
+      "schema": "VoiceExercise",
+      "description": "Voice recordings"
+    },
+    "/activityLogs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "System activity logs"
+    },
+    "/chatSessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Interactive translation sessions"
+    },
+    "/friendships/{friendshipId}": {
+      "schema": "Friendship",
+      "description": "User friendships"
+    },
+    "/friendRequests/{requestId}": {
+      "schema": "FriendRequest",
+      "description": "Friend requests"
+    },
+    "/usernames/{username}": {
+      "description": "Mapping of unique usernames to user UIDs",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "uid": { "type": "string" }
+        },
+        "required": ["uid"]
+      }
+    }
+  }
+}

@@ -1,0 +1,211 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - role: string (enum: user, admin)
+    //   - preferredDialect: string (optional)
+    //
+    // Collection: words
+    // Document ID: {wordId}
+    // Fields:
+    //   - dialect: string (required)
+    //   - word: string (required)
+    //   - meaning: string (required)
+    //   - pronunciation: string (optional)
+    //   - isAiGenerated: bool (optional)
+    //   - status: string (enum: pending, verified, flagged)
+    //   - createdBy: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: corrections
+    // Document ID: {correctionId}
+    // Fields:
+    //   - wordId: string (required)
+    //   - suggestedWord: string (optional)
+    //   - suggestedMeaning: string (optional)
+    //   - suggestedPronunciation: string (optional)
+    //   - reason: string (optional)
+    //   - submittedBy: string (required)
+    //   - submittedAt: timestamp (required)
+    //   - status: string (enum: pending, approved, rejected)
+    //
+    // Collection: voiceExercises
+    // Document ID: {exerciseId}
+    // Fields:
+    //   - userId: string (required)
+    //   - userEmail: string (optional)
+    //   - wordId: string (required)
+    //   - audioUrl: string (required)
+    //   - dialect: string (required)
+    //   - submittedAt: timestamp (required)
+    //   - status: string (enum: pending, verified, flagged)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+         (request.auth.token.email == "danbis664@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'username', 'username_lowercase', 'preferredDialect', 'points', 'contributions', 'streak', 'achievements', 'challenges', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.displayName is string &&
+             (data.role == 'user' || data.role == 'admin') &&
+             data.points is number &&
+             data.contributions is number &&
+             (!('username' in data) || (data.username is string && data.username.size() >= 3 && data.username.size() <= 20 && data.username.matches("^[a-zA-Z0-9_]+$"))) &&
+             (!('username_lowercase' in data) || (data.username_lowercase is string && data.username_lowercase == data.username.lower())) &&
+             (!('preferredDialect' in data) || data.preferredDialect is string) &&
+             (!('photoURL' in data) || data.photoURL is string) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidFriendship(data) {
+      return hasRequiredFields(['users', 'createdAt']) &&
+             data.users is list && data.users.size() == 2 &&
+             request.auth.uid in data.users;
+    }
+
+    function isValidFriendRequest(data) {
+      return hasRequiredFields(['fromId', 'fromName', 'toId', 'status', 'createdAt']) &&
+             data.fromId == request.auth.uid &&
+             data.status == 'pending';
+    }
+
+    function isValidWord(data) {
+      return hasRequiredFields(['dialect', 'word', 'meaning', 'createdBy', 'createdAt']) &&
+             data.dialect is string && data.dialect.size() > 0 &&
+             data.word is string && data.word.size() > 0 &&
+             data.meaning is string && data.meaning.size() > 0 &&
+             data.createdBy == request.auth.uid &&
+             data.status in ['pending', 'verified', 'flagged'];
+    }
+
+    function isValidCorrection(data) {
+      return hasRequiredFields(['wordId', 'submittedBy', 'submittedAt', 'status']) &&
+             data.submittedBy == request.auth.uid &&
+             data.status == 'pending';
+    }
+
+    function isValidVoiceExercise(data) {
+      return hasRequiredFields(['userId', 'wordId', 'audioUrl', 'dialect', 'submittedAt', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.status == 'pending';
+    }
+
+    function isValidActivityLog(data) {
+      return hasRequiredFields(['action', 'userId', 'timestamp']) &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidChatSession(data) {
+      return hasRequiredFields(['englishPhrase', 'userId', 'dialect', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.status == 'pending';
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
+    }
+
+    match /friendships/{friendshipId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.users;
+      allow create: if isAuthenticated() && isValidFriendship(request.resource.data);
+      allow delete: if isAuthenticated() && request.auth.uid in resource.data.users;
+    }
+
+    match /friendRequests/{requestId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.fromId || request.auth.uid == resource.data.toId);
+      allow create: if isAuthenticated() && isValidFriendRequest(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.toId && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+                    request.resource.data.status in ['accepted', 'declined'];
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.fromId || request.auth.uid == resource.data.toId);
+    }
+
+    match /words/{wordId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidWord(request.resource.data);
+      allow update: if isAuthenticated() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'flagged'));
+      allow delete: if isAdmin();
+    }
+
+    match /corrections/{correctionId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.submittedBy) || isAdmin());
+      allow create: if isAuthenticated() && isValidCorrection(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /voiceExercises/{exerciseId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAuthenticated() && isValidVoiceExercise(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /activityLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidActivityLog(request.resource.data);
+    }
+
+    match /chatSessions/{sessionId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAuthenticated() && isValidChatSession(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /usernames/{username} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+  }
+}

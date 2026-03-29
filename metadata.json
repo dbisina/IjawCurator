@@ -1,0 +1,5 @@
+{
+  "name": "Ijaw Language Curator",
+  "description": "A collaborative platform for curating Ijaw language dialects, correcting AI-generated meanings, and building a high-quality dataset for language learning.",
+  "requestFramePermissions": ["microphone"]
+}
