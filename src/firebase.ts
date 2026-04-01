@@ -2,8 +2,16 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, onSnapshot, query, where, orderBy, getDocFromServer, serverTimestamp, increment } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import firebaseConfig from '../firebase-applet-config.json';
+import _firebaseConfig from '../firebase-applet-config.json';
 import { UserProfile, WordEntry, CorrectionEntry } from './types';
+
+// firebase-applet-config.json uses "[GCP_API_KEY]" as a placeholder that
+// AI Studio substitutes at runtime. Outside AI Studio (Railway, local dev)
+// we override it with the real key from the environment variable.
+const firebaseConfig = {
+  ..._firebaseConfig,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || _firebaseConfig.apiKey,
+};
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
