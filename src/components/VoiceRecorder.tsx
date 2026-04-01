@@ -14,9 +14,10 @@ interface VoiceRecorderProps {
   onUploadSuccess?: (url: string) => void;
   onUploadingChange?: (isUploading: boolean) => void;
   className?: string;
+  variant?: 'default' | 'compact';
 }
 
-export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, onUploadSuccess, onUploadingChange, className }) => {
+export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, onUploadSuccess, onUploadingChange, className, variant = 'default' }) => {
   const { playHover } = useHoverSound();
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -179,11 +180,17 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
   };
 
   return (
-    <div className={cn("flex flex-col items-center gap-4 p-6 bg-zinc-900/50 rounded-2xl border border-zinc-800", className)}>
-      <div className="text-center">
-        <h3 className="text-lg font-medium text-white">Voice Exercise</h3>
-        <p className="text-sm text-zinc-400">Record your pronunciation to help AI learn</p>
-      </div>
+    <div className={cn(
+      "flex flex-col items-center gap-6",
+      variant === 'default' ? "p-8 bg-slate-900/40 rounded-xl border border-slate-800/50 backdrop-blur-md shadow-xl" : "p-2",
+      className
+    )}>
+      {variant === 'default' && (
+        <div className="text-center space-y-2">
+          <h3 className="text-xl font-black text-slate-100 tracking-tight">Voice Exercise</h3>
+          <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">Record your pronunciation</p>
+        </div>
+      )}
 
       <div className="relative">
         <AnimatePresence mode="wait">
@@ -196,13 +203,13 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
               onClick={isRecording ? stopRecording : startRecording}
               onMouseEnter={playHover}
               className={cn(
-                "w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300",
+                "w-20 h-20 rounded-xl flex items-center justify-center transition-all duration-300 border shadow-2xl",
                 isRecording 
-                  ? "bg-red-500 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.4)]" 
-                  : "bg-indigo-600 hover:bg-indigo-500 shadow-lg"
+                  ? "bg-red-500 border-red-400 animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.4)]" 
+                  : "bg-indigo-600 border-indigo-500 hover:bg-indigo-500 shadow-indigo-500/20"
               )}
             >
-              {isRecording ? <Square className="text-white fill-white" /> : <Mic className="text-white" />}
+              {isRecording ? <Square className="text-white fill-white w-6 h-6" /> : <Mic className="text-white w-8 h-8" />}
             </motion.button>
           ) : (
             <motion.div
@@ -213,24 +220,24 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
               className="flex items-center gap-3"
             >
               <button
-                onClick={() => new Audio(audioUrl).play()}
+                onClick={() => new Audio(audioUrl!).play().catch(() => toast.error("Failed to play preview"))}
                 onMouseEnter={playHover}
-                className="w-14 h-14 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full flex items-center justify-center transition-colors"
+                className="w-14 h-14 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center justify-center transition-all border border-slate-700/50 shadow-inner group/play"
               >
-                <Play className="fill-white" />
+                <Play className="fill-white w-5 h-5 group-hover:scale-110 transition-transform" />
               </button>
               <button
                 onClick={deleteRecording}
                 onMouseEnter={playHover}
-                className="w-14 h-14 bg-zinc-800 hover:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center transition-colors"
+                className="w-14 h-14 bg-slate-800 hover:bg-red-900/20 text-red-500 rounded-xl flex items-center justify-center transition-all border border-slate-700/50 shadow-inner group/trash"
               >
-                <Trash2 />
+                <Trash2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
               </button>
               <button
                 onClick={handleUpload}
                 onMouseEnter={playHover}
                 disabled={isUploading}
-                className="w-14 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-50 relative overflow-hidden"
+                className="w-14 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl flex items-center justify-center transition-all disabled:opacity-50 relative overflow-hidden border border-indigo-500 shadow-lg shadow-indigo-500/20 group/upload"
               >
                 {isUploading ? (
                   <>
@@ -238,10 +245,10 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
                       className="absolute bottom-0 left-0 w-full bg-indigo-400/30 transition-all duration-300" 
                       style={{ height: `${uploadProgress}%` }}
                     />
-                    <span className="text-[10px] font-bold z-10">{Math.round(uploadProgress)}%</span>
+                    <span className="text-[10px] font-black z-10">{Math.round(uploadProgress)}%</span>
                   </>
                 ) : (
-                  <Upload />
+                  <Upload className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
                 )}
               </button>
             </motion.div>

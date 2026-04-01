@@ -89,7 +89,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ steps, onComplete, isOpen })
         className="pointer-events-none"
       >
         <div 
-          className="absolute z-[101] w-72 bg-zinc-900 border border-indigo-500/50 p-5 rounded-2xl shadow-2xl pointer-events-auto"
+          className="absolute z-[101] w-80 bg-slate-900/90 border border-indigo-500/30 p-6 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] pointer-events-auto backdrop-blur-xl"
           style={getTooltipPosition()}
         >
           <div className="flex items-start justify-between mb-3">
@@ -97,18 +97,18 @@ export const Tutorial: React.FC<TutorialProps> = ({ steps, onComplete, isOpen })
               <Info className="w-4 h-4" />
               <span className="text-xs font-bold uppercase tracking-widest">Step {currentStep + 1} of {steps.length}</span>
             </div>
-            <button onClick={onComplete} className="text-zinc-500 hover:text-white transition-colors">
+            <button onClick={onComplete} className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-slate-800 rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
           
           <h4 className="text-lg font-bold text-white mb-1">{step.title}</h4>
-          <p className="text-sm text-zinc-400 mb-4 leading-relaxed">{step.content}</p>
+          <p className="text-sm text-slate-400 mb-5 leading-relaxed font-medium">{step.content}</p>
           
           <div className="flex justify-between items-center">
             <button 
               onClick={onComplete}
-              className="text-xs text-zinc-500 hover:text-zinc-300 font-medium"
+              className="text-[10px] text-slate-500 hover:text-slate-300 font-black uppercase tracking-widest transition-colors"
             >
               Skip Tutorial
             </button>
@@ -120,20 +120,20 @@ export const Tutorial: React.FC<TutorialProps> = ({ steps, onComplete, isOpen })
                   onComplete();
                 }
               }}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 transition-all"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 active:scale-95 border border-indigo-500"
             >
               {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
-              <ChevronRight className="w-3 h-3" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Arrow */}
           <div className={cn(
-            "absolute w-3 h-3 bg-zinc-900 border-l border-t border-indigo-500/50 rotate-45",
-            step.position === 'top' && "bottom-[-7px] left-1/2 -translate-x-1/2 border-l-0 border-t-0 border-r border-b",
-            step.position === 'bottom' && "top-[-7px] left-1/2 -translate-x-1/2",
-            step.position === 'left' && "right-[-7px] top-1/2 -translate-y-1/2 border-l-0 border-t-0 border-r border-b -rotate-45",
-            step.position === 'right' && "left-[-7px] top-1/2 -translate-y-1/2 rotate-[225deg]"
+            "absolute w-4 h-4 bg-slate-900 border-l border-t border-indigo-500/30 rotate-45",
+            step.position === 'top' && "bottom-[-8px] left-1/2 -track-x-1/2 border-l-0 border-t-0 border-r border-b",
+            step.position === 'bottom' && "top-[-8px] left-1/2 -track-x-1/2",
+            step.position === 'left' && "right-[-8px] top-1/2 -track-y-1/2 border-l-0 border-t-0 border-r border-b -rotate-45",
+            step.position === 'right' && "left-[-8px] top-1/2 -track-y-1/2 rotate-[225deg]"
           )} />
         </div>
       </motion.div>

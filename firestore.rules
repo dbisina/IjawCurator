@@ -172,21 +172,34 @@ service cloud.firestore {
     match /words/{wordId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidWord(request.resource.data);
-      allow update: if isAuthenticated() && (isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'flagged'));
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Any authenticated user can flag a word
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'flagged') ||
+        // Word submitter or any authenticated user can unflag (remove review block)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && resource.data.status == 'flagged' && request.resource.data.status == 'pending')
+      );
       allow delete: if isAdmin();
     }
 
     match /corrections/{correctionId} {
-      allow read: if isAuthenticated() && (isOwner(resource.data.submittedBy) || isAdmin());
+      // Corrections are community data — any authenticated user can read/query them.
+      // resource.data is not available during list queries, so owner checks must go here,
+      // not on individual doc reads.
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidCorrection(request.resource.data);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /voiceExercises/{exerciseId} {
-      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidVoiceExercise(request.resource.data);
-      allow update: if isAdmin();
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Any authenticated user can like/unlike a recording (only 'likes' field changes)
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+      );
       allow delete: if isAdmin();
     }
 

@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Play, Send, Mic2, CheckCircle2, Languages, Volume2, Loader2 } from 'lucide-react';
-import { generateEnglishPhrase, generateSpeech } from '../services/geminiService';
+import {
+  RefreshCw, Send, Volume2, Loader2,
+  CheckCircle2, AlertCircle, History, X, Mic2, ChevronRight
+} from 'lucide-react';
+import { generateEnglishPhrase, generateSpeech, verifyIjawWord } from '../services/geminiService';
 import { VoiceRecorder } from './VoiceRecorder';
 import { db, auth, logActivity, awardPoints } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
-import { useHoverSound } from '../hooks/useHoverSound';
 
 interface ChatSectionProps {
   dialect: string;
@@ -16,76 +18,76 @@ interface ChatSectionProps {
   checkAchievements: (profile: any) => void;
 }
 
-export const ChatSection: React.FC<ChatSectionProps> = ({ dialect, profile, setProfile, checkAchievements }) => {
-  const { playHover } = useHoverSound();
-  const [englishPhrase, setEnglishPhrase] = useState<string>('');
-  const [ijawTranslation, setIjawTranslation] = useState<string>('');
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
+interface SessionEntry {
+  englishPhrase: string;
+  ijawTranslation: string;
+  audioUrl: string | null;
+  verdict: { isCorrect: boolean; correction?: string; reason?: string } | null;
+  submittedAt: Date;
+}
+
+export const ChatSection: React.FC<ChatSectionProps> = ({
+  dialect, profile, setProfile, checkAchievements
+}) => {
+  const [englishPhrase, setEnglishPhrase]       = useState('');
+  const [ijawTranslation, setIjawTranslation]   = useState('');
+  const [audioUrl, setAudioUrl]                 = useState<string | null>(null);
+  const [isGenerating, setIsGenerating]         = useState(false);
+  const [isSubmitting, setIsSubmitting]         = useState(false);
+  const [isVerifying, setIsVerifying]           = useState(false);
+  const [isPlaying, setIsPlaying]               = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [sessionHistory, setSessionHistory]     = useState<SessionEntry[]>([]);
+  const [showHistory, setShowHistory]           = useState(false);
+  const [verdict, setVerdict]                   = useState<SessionEntry['verdict']>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const fetchNewPhrase = async () => {
     setIsGenerating(true);
+    setVerdict(null);
+    setIjawTranslation('');
+    setAudioUrl(null);
     try {
       const phrase = await generateEnglishPhrase();
-      setEnglishPhrase(phrase);
-      setIjawTranslation('');
-      setAudioUrl(null);
-    } catch (error) {
-      console.error("Failed to fetch phrase:", error);
-      toast.error("Failed to get a new phrase");
+      setEnglishPhrase(phrase || 'I want to learn Ijaw.');
+    } catch {
+      setEnglishPhrase('Welcome to Izonate.');
+      toast.error('Could not load a phrase — try refreshing');
     } finally {
       setIsGenerating(false);
+      setTimeout(() => textareaRef.current?.focus(), 80);
     }
   };
 
-  useEffect(() => {
-    fetchNewPhrase();
-  }, []);
+  useEffect(() => { fetchNewPhrase(); }, []);
 
   const playAI = async () => {
     if (!englishPhrase || isPlaying) return;
     setIsPlaying(true);
     try {
-      const base64Audio = await generateSpeech(englishPhrase);
-      const audio = new Audio(`data:audio/pcm;base64,${base64Audio}`);
-      // Note: The TTS model returns 24kHz PCM. We might need a proper player if Audio doesn't handle it.
-      // But for simplicity, let's try standard Audio first. 
-      // Actually, standard Audio expects a container (WAV/MP3). 
-      // Let's use a simple WAV header or just assume the user can hear it if I use a better approach.
-      // For now, I'll use a simple approach.
-      const binary = atob(base64Audio);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      
-      // Since it's raw PCM 24000Hz, we should ideally use AudioContext.
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      const buffer = audioCtx.createBuffer(1, bytes.length / 2, 24000);
-      const channelData = buffer.getChannelData(0);
-      const view = new DataView(bytes.buffer);
-      for (let i = 0; i < bytes.length / 2; i++) {
-        channelData[i] = view.getInt16(i * 2, true) / 32768;
-      }
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioCtx.destination);
-      source.onended = () => {
-        setIsPlaying(false);
-        audioCtx.close();
-      };
-      source.start();
-    } catch (error) {
-      console.error("Failed to play speech:", error);
-      toast.error("Failed to play AI voice");
+      const b64 = await generateSpeech(englishPhrase);
+      const raw  = atob(b64);
+      const buf  = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+      const ctx  = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const ab   = ctx.createBuffer(1, buf.length / 2, 24000);
+      const view = new DataView(buf.buffer);
+      const ch   = ab.getChannelData(0);
+      for (let i = 0; i < buf.length / 2; i++) ch[i] = view.getInt16(i * 2, true) / 32768;
+      const src = ctx.createBufferSource();
+      src.buffer = ab;
+      src.connect(ctx.destination);
+      src.onended = () => { setIsPlaying(false); ctx.close(); };
+      src.start();
+    } catch {
+      toast.error('Could not play audio');
       setIsPlaying(false);
     }
   };
 
   const handleSubmit = async () => {
     if (!ijawTranslation.trim() || !auth.currentUser) {
-      toast.error("Please provide a translation");
+      toast.error('Enter your translation first');
       return;
     }
     setIsSubmitting(true);
@@ -97,143 +99,332 @@ export const ChatSection: React.FC<ChatSectionProps> = ({ dialect, profile, setP
         userId: auth.currentUser.uid,
         dialect,
         status: 'pending',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
       });
       const updated = await awardPoints(auth.currentUser.uid, 10, true);
-      if (updated) {
-        setProfile(updated);
-        await checkAchievements(updated);
-      }
-      await logActivity('CHAT_TRANSLATION_SUBMITTED', `Submitted translation for: ${englishPhrase}`);
-      toast.success("Translation submitted successfully!");
-      fetchNewPhrase();
-    } catch (error) {
-      console.error("Failed to submit:", error);
-      toast.error("Failed to save your translation");
-    } finally {
+      if (updated) { setProfile(updated); await checkAchievements(updated); }
+      await logActivity('CHAT_TRANSLATION_SUBMITTED', `Submitted: ${englishPhrase}`);
+    } catch {
+      toast.error('Failed to save your translation');
       setIsSubmitting(false);
+      return;
     }
+    setIsSubmitting(false);
+    setIsVerifying(true);
+
+    let v: SessionEntry['verdict'] = null;
+    try {
+      v = await verifyIjawWord(ijawTranslation, englishPhrase, dialect);
+      setVerdict(v);
+    } catch {
+      // verification failure is non-fatal
+    } finally {
+      setIsVerifying(false);
+    }
+
+    setSessionHistory(prev => [{
+      englishPhrase, ijawTranslation, audioUrl, verdict: v, submittedAt: new Date()
+    }, ...prev]);
+
+    fetchNewPhrase();
   };
 
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit();
+  };
+
+  const busy = isSubmitting || isVerifying || isUploadingAudio;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 py-8">
-      <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
-          Interactive Translation Chat
-        </h2>
-        <p className="text-zinc-500">AI speaks in English, you translate to Ijaw ({dialect})</p>
+    <div className="max-w-5xl mx-auto py-10 px-4 sm:px-6">
+
+      {/* ── Page title row ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-10">
+        <div>
+          <p className="text-[11px] font-semibold text-amber-500/70 uppercase tracking-[0.25em] mb-1">
+            {dialect}
+          </p>
+          <h2
+            className="text-4xl sm:text-5xl font-semibold text-[#f0ede4] leading-tight"
+            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+          >
+            Practice
+          </h2>
+        </div>
+
+        {sessionHistory.length > 0 && (
+          <button
+            onClick={() => setShowHistory(h => !h)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border',
+              showHistory
+                ? 'bg-slate-800 border-slate-700 text-white'
+                : 'bg-transparent border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+            )}
+          >
+            <History className="w-4 h-4" />
+            History
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-amber-700/30 text-amber-400 rounded-md">
+              {sessionHistory.length}
+            </span>
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* AI Side */}
-        <motion.div 
-          id="ai-prompt-card"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          onMouseEnter={playHover}
-          className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl space-y-6 relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Volume2 className="w-24 h-24" />
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-              <Languages className="w-6 h-6 text-white" />
+      <div className={cn(
+        'grid gap-8 items-start',
+        showHistory && sessionHistory.length > 0 ? 'lg:grid-cols-[1fr_320px]' : 'grid-cols-1'
+      )}>
+
+        {/* ── Left: main practice card ────────────────────────────── */}
+        <div className="space-y-3">
+
+          {/* Phrase card */}
+          <div className="rounded-2xl bg-slate-900/50 border border-slate-800/60 overflow-hidden">
+
+            {/* Phrase display */}
+            <div className="px-6 pt-8 pb-6">
+              <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-[0.2em] mb-5">
+                Translate into {dialect}
+              </p>
+
+              <AnimatePresence mode="wait">
+                {isGenerating ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-3 h-16"
+                  >
+                    <div className="w-5 h-5 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+                    <span className="text-slate-500 text-lg">Getting phrase…</span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={englishPhrase}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.22, ease: 'easeOut' }}
+                  >
+                    <p
+                      className="text-3xl sm:text-4xl text-[#f0ede4] leading-snug"
+                      style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 600 }}
+                    >
+                      {englishPhrase}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">AI Prompt (English)</span>
-          </div>
 
-          <div className="min-h-[100px] flex items-center justify-center text-center">
-            {isGenerating ? (
-              <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
-            ) : (
-              <h3 className="text-2xl font-medium text-zinc-200 leading-relaxed">
-                "{englishPhrase}"
-              </h3>
-            )}
-          </div>
+            {/* Phrase actions row */}
+            <div className="flex items-center gap-2 px-6 pb-6">
+              <button
+                onClick={playAI}
+                disabled={isGenerating || isPlaying || !englishPhrase}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 text-slate-300 hover:text-white text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Listen to phrase"
+              >
+                {isPlaying
+                  ? <RefreshCw className="w-4 h-4 animate-spin" />
+                  : <Volume2 className="w-4 h-4" />}
+                Listen
+              </button>
 
-          <div className="flex justify-center gap-4">
-            <button 
-              onClick={playAI}
-              onMouseEnter={playHover}
-              disabled={isGenerating || isPlaying}
-              className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white rounded-2xl font-medium transition-all flex items-center gap-2"
-            >
-              {isPlaying ? <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" /> : <Play className="w-4 h-4" />}
-              Listen to AI
-            </button>
-            <button 
-              onClick={fetchNewPhrase}
-              onMouseEnter={playHover}
-              disabled={isGenerating}
-              className="p-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-2xl transition-all"
-              title="New Phrase"
-            >
-              <RefreshCw className={cn("w-5 h-5", isGenerating && "animate-spin")} />
-            </button>
-          </div>
-        </motion.div>
-
-        {/* User Side */}
-        <motion.div 
-          id="user-translation-card"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          onMouseEnter={playHover}
-          className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl space-y-6"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
-              <Mic2 className="w-6 h-6 text-white" />
+              <button
+                onClick={fetchNewPhrase}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-transparent hover:bg-slate-800/60 border border-slate-800/60 text-slate-500 hover:text-slate-300 text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Skip to another phrase"
+              >
+                <RefreshCw className={cn('w-4 h-4', isGenerating && 'animate-spin')} />
+                Skip
+              </button>
             </div>
-            <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Your Translation ({dialect})</span>
-          </div>
 
-          <div className="space-y-4">
-            <textarea 
-              value={ijawTranslation}
-              onChange={(e) => setIjawTranslation(e.target.value)}
-              placeholder="Type the Ijaw translation here..."
-              className="w-full bg-zinc-800/50 border border-zinc-700 rounded-2xl p-4 min-h-[120px] focus:outline-none focus:border-emerald-500 transition-colors resize-none text-lg"
-            />
+            {/* Divider */}
+            <div className="border-t border-slate-800/60" />
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest block">Record Pronunciation</label>
-              <VoiceRecorder 
+            {/* Translation input */}
+            <div className="px-6 pt-6 pb-4">
+              <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-[0.2em] mb-4">
+                Your translation
+              </p>
+              <textarea
+                ref={textareaRef}
+                value={ijawTranslation}
+                onChange={e => setIjawTranslation(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder={`Type in ${dialect}…`}
+                rows={3}
+                className="w-full bg-transparent focus:outline-none text-2xl text-white placeholder:text-slate-800 resize-none leading-relaxed"
+                style={{ fontFamily: "'Cormorant Garamond', serif" }}
+              />
+              <p className="text-[10px] text-slate-700 mt-2">
+                ⌘ + Enter to submit
+              </p>
+            </div>
+
+            {/* Voice recorder strip */}
+            <div className="px-6 pb-5 border-t border-slate-800/40 pt-4">
+              <VoiceRecorder
+                variant="compact"
                 onUploadingChange={setIsUploadingAudio}
                 onUploadSuccess={(url) => {
                   setAudioUrl(url);
-                  toast.success("Voice sample uploaded!");
-                }} 
+                  toast.success('Voice recording attached');
+                }}
+                className="bg-transparent"
               />
             </div>
 
-            <button 
-              id="submit-translation-btn"
-              onClick={handleSubmit}
-              onMouseEnter={playHover}
-              disabled={isSubmitting || !ijawTranslation.trim() || isUploadingAudio}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/20"
-            >
-              {isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin" /> : (isUploadingAudio ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />)}
-              {isUploadingAudio ? "Uploading Audio..." : "Submit Translation"}
-            </button>
+            {/* Submit */}
+            <div className="px-6 pb-6">
+              <button
+                id="submit-translation-btn"
+                onClick={handleSubmit}
+                disabled={busy || !ijawTranslation.trim()}
+                className={cn(
+                  'w-full flex items-center justify-center gap-3 py-4 rounded-xl font-semibold text-sm transition-all',
+                  busy || !ijawTranslation.trim()
+                    ? 'bg-slate-800/60 text-slate-600 cursor-not-allowed'
+                    : 'bg-amber-700 hover:bg-amber-600 text-white shadow-lg shadow-amber-900/30 active:scale-[0.99]'
+                )}
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isVerifying && <RefreshCw className="w-4 h-4 animate-spin" />}
+                {!isSubmitting && !isVerifying && <Send className="w-4 h-4" />}
+                {isVerifying ? 'Checking…' : isSubmitting ? 'Saving…' : 'Submit'}
+              </button>
+            </div>
           </div>
-        </motion.div>
-      </div>
 
-      <div className="bg-indigo-500/5 border border-indigo-500/10 p-6 rounded-3xl flex items-start gap-4">
-        <div className="p-2 bg-indigo-500/10 rounded-xl">
-          <CheckCircle2 className="w-6 h-6 text-indigo-400" />
+          {/* ── Verdict banner ───────────────────────────────────── */}
+          <AnimatePresence>
+            {verdict && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className={cn(
+                  'rounded-2xl border px-6 py-5 flex items-start gap-4',
+                  verdict.isCorrect
+                    ? 'bg-emerald-500/5 border-emerald-500/20'
+                    : 'bg-amber-500/5 border-amber-500/20'
+                )}
+              >
+                <div className={cn(
+                  'mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+                  verdict.isCorrect ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
+                )}>
+                  {verdict.isCorrect
+                    ? <CheckCircle2 className="w-4 h-4" />
+                    : <AlertCircle className="w-4 h-4" />}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className={cn(
+                    'text-xs font-semibold mb-1',
+                    verdict.isCorrect ? 'text-emerald-400' : 'text-amber-400'
+                  )}>
+                    {verdict.isCorrect ? 'Looks good' : 'Needs a small fix'}
+                  </p>
+                  {verdict.reason && (
+                    <p className="text-slate-300 text-sm leading-relaxed">{verdict.reason}</p>
+                  )}
+                  {!verdict.isCorrect && verdict.correction && (
+                    <p
+                      className="mt-3 text-2xl text-amber-200"
+                      style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 600 }}
+                    >
+                      {verdict.correction}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setVerdict(null)}
+                  className="text-slate-700 hover:text-slate-400 transition-colors shrink-0 mt-0.5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <div>
-          <h4 className="font-bold text-indigo-300">How it works</h4>
-          <p className="text-sm text-zinc-500 leading-relaxed">
-            AI generates a common English phrase and speaks it. Your job is to translate it into your dialect and record yourself saying it. This helps us build a rich dataset for phrases and sentences, not just single words!
-          </p>
-        </div>
+
+        {/* ── Right: history sidebar ──────────────────────────────── */}
+        <AnimatePresence>
+          {showHistory && sessionHistory.length > 0 && (
+            <motion.aside
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 16 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="space-y-3 lg:sticky lg:top-24"
+            >
+              <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-[0.2em] px-1 mb-4">
+                This session
+              </p>
+
+              <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+                {sessionHistory.map((entry, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="group rounded-xl border border-slate-800/60 bg-slate-900/30 hover:bg-slate-900/60 px-4 py-3.5 transition-all cursor-default"
+                  >
+                    {/* English */}
+                    <p className="text-[11px] text-slate-600 mb-1.5 line-clamp-1">
+                      {entry.englishPhrase}
+                    </p>
+
+                    {/* Ijaw */}
+                    <p
+                      className="text-lg text-[#f0ede4] leading-snug line-clamp-2 mb-3"
+                      style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 600 }}
+                    >
+                      {entry.ijawTranslation}
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                      {/* Verdict dot */}
+                      <span className={cn(
+                        'inline-flex items-center gap-1.5 text-[10px] font-semibold',
+                        entry.verdict === null ? 'text-slate-600' :
+                        entry.verdict.isCorrect ? 'text-emerald-500' : 'text-amber-500'
+                      )}>
+                        <span className={cn(
+                          'w-1.5 h-1.5 rounded-full',
+                          entry.verdict === null ? 'bg-slate-700' :
+                          entry.verdict.isCorrect ? 'bg-emerald-500' : 'bg-amber-500'
+                        )} />
+                        {entry.verdict === null ? 'Unverified' :
+                         entry.verdict.isCorrect ? 'Correct' : 'Corrected'}
+                      </span>
+
+                      {/* Audio playback */}
+                      {entry.audioUrl && (
+                        <button
+                          onClick={() => new Audio(entry.audioUrl!).play()}
+                          className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-600 hover:text-slate-300 hover:bg-slate-800 transition-all"
+                          title="Play recording"
+                        >
+                          <Volume2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

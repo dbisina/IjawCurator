@@ -97,38 +97,40 @@ export const ChatHistory: React.FC = () => {
 
   if (sessions.length === 0) {
     return (
-      <div className="text-center py-20 space-y-4">
-        <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto">
-          <History className="w-8 h-8 text-zinc-700" />
+      <div className="text-center py-20 space-y-6 bg-slate-900/20 border border-slate-800/50 rounded-xl backdrop-blur-sm">
+        <div className="w-16 h-16 bg-slate-900 rounded-xl flex items-center justify-center mx-auto border border-slate-800 shadow-inner">
+          <History className="w-8 h-8 text-slate-700" />
         </div>
-        <h3 className="text-xl font-bold text-zinc-400">No translation history yet</h3>
-        <p className="text-zinc-500 max-w-md mx-auto">
-          Start translating English phrases in the Chat section to build your history!
-        </p>
+        <div className="space-y-2">
+          <h3 className="text-xl font-black text-slate-100 tracking-tight">No translation history yet</h3>
+          <p className="text-slate-500 max-w-md mx-auto text-sm font-medium">
+            Start translating English phrases in the Chat section to build your history!
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 py-8">
-      <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
+      <div className="text-center space-y-3">
+        <h2 className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-indigo-300 to-purple-400 tracking-tight">
           Translation History
         </h2>
-        <p className="text-zinc-500">Review your past translations and their verification status</p>
+        <p className="text-slate-500 font-medium">Review your past translations and their verification status</p>
       </div>
 
       {/* Controls Section */}
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <div className="relative flex-1 group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
             <input 
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search phrases or translations..."
-              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-500 transition-all text-zinc-200"
+              className="w-full bg-slate-900/40 border border-slate-800/50 rounded-xl pl-12 pr-4 py-3.5 focus:outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 transition-all text-slate-100 placeholder:text-slate-600 backdrop-blur-md"
             />
           </div>
           <div className="flex gap-2">
@@ -136,16 +138,16 @@ export const ChatHistory: React.FC = () => {
               onClick={() => setShowFilters(!showFilters)}
               onMouseEnter={playHover}
               className={cn(
-                "px-4 py-3 rounded-2xl border transition-all flex items-center gap-2 font-bold text-sm",
+                "px-5 py-3 rounded-xl border transition-all flex items-center gap-2 font-black text-[10px] uppercase tracking-widest",
                 showFilters || dialectFilter !== 'all' || statusFilter !== 'all' 
-                  ? "bg-indigo-600 border-indigo-500 text-white" 
-                  : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                  ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20" 
+                  : "bg-slate-900/40 border-slate-800/50 text-slate-400 hover:border-slate-700 hover:text-slate-100 backdrop-blur-md"
               )}
             >
-              <Filter className="w-4 h-4" />
+              <Filter className="w-3.5 h-3.5" />
               Filters
               {(dialectFilter !== 'all' || statusFilter !== 'all') && (
-                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
               )}
             </button>
             <div className="relative group">
@@ -153,13 +155,13 @@ export const ChatHistory: React.FC = () => {
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
                 onMouseEnter={playHover}
-                className="appearance-none px-4 py-3 bg-zinc-900/50 border border-zinc-800 rounded-2xl text-zinc-400 text-sm font-bold hover:border-zinc-700 transition-all focus:outline-none pr-10 cursor-pointer"
+                className="appearance-none px-5 py-3 bg-slate-900/40 border border-slate-800/50 rounded-xl text-slate-400 text-[10px] font-black uppercase tracking-widest hover:border-slate-700 hover:text-slate-100 transition-all focus:outline-none pr-12 cursor-pointer backdrop-blur-md"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
                 <option value="dialect">By Dialect</option>
               </select>
-              <ArrowUpDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+              <ArrowUpDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none group-hover:text-slate-400 transition-colors" />
             </div>
           </div>
         </div>
@@ -172,13 +174,13 @@ export const ChatHistory: React.FC = () => {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-3xl p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6 grid grid-cols-1 md:grid-cols-3 gap-6 backdrop-blur-md shadow-xl">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Dialect</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Dialect</label>
                   <select 
                     value={dialectFilter}
                     onChange={(e) => setDialectFilter(e.target.value)}
-                    className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
                   >
                     <option value="all">All Dialects</option>
                     {IJAW_DIALECTS.map(d => (
@@ -187,11 +189,11 @@ export const ChatHistory: React.FC = () => {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Status</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Status</label>
                   <select 
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/50 transition-all cursor-pointer"
                   >
                     <option value="all">All Statuses</option>
                     <option value="pending">Pending</option>
@@ -203,10 +205,10 @@ export const ChatHistory: React.FC = () => {
                   <button 
                     onClick={clearFilters}
                     onMouseEnter={playHover}
-                    className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                    className="w-full py-2.5 bg-slate-800 hover:bg-red-900/20 text-slate-400 hover:text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-slate-700/50 group"
                   >
-                    <X className="w-3 h-3" />
-                    Clear All Filters
+                    <X className="w-3 h-3 group-hover:rotate-90 transition-transform" />
+                    Clear Filters
                   </button>
                 </div>
               </div>
@@ -223,41 +225,42 @@ export const ChatHistory: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               onMouseEnter={playHover}
-              className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl hover:border-zinc-700 transition-all group"
+              className="bg-slate-900/40 border border-slate-800/50 p-7 rounded-xl hover:border-indigo-500/30 transition-all group backdrop-blur-sm relative overflow-hidden"
             >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-4 flex-1">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-colors" />
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                <div className="space-y-5 flex-1">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center">
-                      <Languages className="w-4 h-4 text-indigo-400" />
+                    <div className="w-9 h-9 bg-indigo-500/10 rounded-xl flex items-center justify-center border border-indigo-500/20 shadow-inner">
+                      <Languages className="w-4.5 h-4.5 text-indigo-400" />
                     </div>
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{session.dialect} Dialect</span>
-                    <div className="h-1 w-1 bg-zinc-700 rounded-full" />
-                    <span className="text-xs text-zinc-500">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{session.dialect} Dialect</span>
+                    <div className="h-1 w-1 bg-slate-700 rounded-full" />
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                       {session.createdAt?.toDate?.() 
-                        ? session.createdAt.toDate().toLocaleDateString() 
+                        ? session.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
                         : 'Just now'}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">English</p>
-                      <p className="text-lg text-zinc-300 font-medium">"{session.englishPhrase}"</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">English Phrase</p>
+                      <p className="text-xl text-slate-200 font-medium tracking-tight">"{session.englishPhrase}"</p>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Ijaw Translation</p>
-                      <p className="text-lg text-emerald-400 font-medium">{session.ijawTranslation}</p>
+                    <div className="space-y-2">
+                      <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Ijaw Translation</p>
+                      <p className="text-xl text-emerald-400 font-black tracking-tight">{session.ijawTranslation}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-zinc-800 pt-4 md:pt-0 md:pl-6">
-                  <div className="flex flex-col items-center md:items-end gap-2">
+                <div className="flex items-center gap-6 border-t md:border-t-0 md:border-l border-slate-800/50 pt-5 md:pt-0 md:pl-8">
+                  <div className="flex flex-col items-center md:items-end gap-4">
                     <div className={cn(
-                      "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2",
+                      "px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 shadow-sm",
                       session.status === 'verified' ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                      session.status === 'flagged' ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                      session.status === 'flagged' ? "bg-red-500/10 text-red-100 border border-red-500/20 shadow-red-500/5" :
                       "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                     )}>
                       {session.status === 'verified' ? <CheckCircle2 className="w-3 h-3" /> :
@@ -269,10 +272,10 @@ export const ChatHistory: React.FC = () => {
                     {session.audioUrl && (
                       <button 
                         onClick={() => new Audio(session.audioUrl).play()}
-                        className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-xl transition-all"
+                        className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all border border-slate-700/50 shadow-inner group/play"
                         title="Play Recording"
                       >
-                        <Volume2 className="w-4 h-4" />
+                        <Volume2 className="w-4.5 h-4.5 group-hover/play:scale-110 transition-transform" />
                       </button>
                     )}
                   </div>
@@ -281,11 +284,11 @@ export const ChatHistory: React.FC = () => {
             </motion.div>
           ))
         ) : (
-          <div className="text-center py-20 bg-zinc-900/20 border border-dashed border-zinc-800 rounded-3xl">
-            <p className="text-zinc-500">No translations match your filters.</p>
+          <div className="text-center py-20 bg-slate-900/20 border border-dashed border-slate-800/50 rounded-xl backdrop-blur-sm">
+            <p className="text-slate-500 font-medium">No translations match your filters.</p>
             <button 
               onClick={clearFilters}
-              className="mt-4 text-indigo-400 hover:text-indigo-300 text-sm font-bold"
+              className="mt-4 text-indigo-400 hover:text-indigo-300 text-[10px] font-black uppercase tracking-widest transition-colors"
             >
               Clear all filters
             </button>

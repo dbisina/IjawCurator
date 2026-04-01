@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "izonate",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
@@ -28,6 +29,7 @@
     "react-markdown": "^10.1.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
+    "three": "^0.183.2",
     "vite": "^6.2.0"
   },
   "devDependencies": {

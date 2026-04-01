@@ -70,7 +70,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onInput, onBac
   }, []);
 
   return (
-    <div className={cn("bg-zinc-900/95 backdrop-blur-xl p-4 rounded-[2rem] shadow-2xl select-none border border-zinc-800/50", className)} onClick={(e) => e.stopPropagation()}>
+    <div className={cn("bg-slate-900/95 backdrop-blur-xl p-4 rounded-xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] select-none border border-slate-800/50", className)} onClick={(e) => e.stopPropagation()}>
       <div className="flex flex-col gap-2.5">
         {ROWS.map((row, i) => (
           <div key={i} className="flex justify-center gap-1.5 sm:gap-2">
@@ -91,10 +91,10 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onInput, onBac
                     onTouchStart={(e) => { e.preventDefault(); handlePressStart(key); }}
                     onTouchEnd={(e) => { e.preventDefault(); handlePressEnd(key); }}
                     className={cn(
-                      "w-9 h-11 sm:w-12 sm:h-16 bg-zinc-800 text-white rounded-xl flex items-center justify-center font-medium transition-all relative active:scale-95 touch-none border border-zinc-700/30 shadow-sm",
-                      activeKey === key && "bg-zinc-700 ring-2 ring-indigo-500/50 scale-105 z-10",
+                      "w-9 h-11 sm:w-12 sm:h-16 bg-slate-800 text-slate-100 rounded-xl flex items-center justify-center font-black transition-all relative active:scale-95 touch-none border border-slate-700/30 shadow-sm",
+                      activeKey === key && "bg-slate-700 ring-2 ring-indigo-500/50 scale-105 z-10",
                       showAccents === key && "bg-indigo-600/20 border-indigo-500/50",
-                      hasAccents && "after:content-[''] after:absolute after:top-1.5 after:right-1.5 after:w-1 after:h-1 after:bg-zinc-500 after:rounded-full"
+                      hasAccents && "after:content-[''] after:absolute after:top-1.5 after:right-1.5 after:w-1 after:h-1 after:bg-slate-500 after:rounded-full shadow-inner"
                     )}
                   >
                     {isUppercase ? key.toUpperCase() : key}
@@ -106,7 +106,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onInput, onBac
                         animate={{ opacity: 1, y: -10, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
                         className={cn(
-                          "absolute bottom-full z-50 bg-zinc-800/95 backdrop-blur-2xl border border-zinc-700/50 p-2 rounded-2xl flex flex-wrap gap-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] min-w-max max-w-[280px] sm:max-w-[400px]",
+                          "absolute bottom-full z-50 bg-slate-900/95 backdrop-blur-2xl border border-slate-800/50 p-2 rounded-xl flex flex-wrap gap-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] min-w-max max-w-[280px] sm:max-w-[400px]",
                           // Simple logic to keep menu on screen for edge keys
                           i === 0 && row.indexOf(key) > 7 ? "right-0" : 
                           i === 0 && row.indexOf(key) < 2 ? "left-0" : "left-1/2 -translate-x-1/2"
@@ -119,7 +119,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onInput, onBac
                               e.stopPropagation();
                               handleAccentSelect(accent);
                             }}
-                            className="w-10 h-12 sm:w-12 sm:h-14 bg-zinc-700/50 text-white rounded-xl flex items-center justify-center hover:bg-indigo-600 hover:scale-110 transition-all text-xl font-medium shadow-inner"
+                            className="w-10 h-12 sm:w-12 sm:h-14 bg-slate-800/80 text-white rounded-xl flex items-center justify-center hover:bg-indigo-600 hover:scale-110 transition-all text-xl font-black shadow-inner border border-slate-700/50"
                           >
                             {isUppercase ? accent.toUpperCase() : accent}
                           </button>
@@ -146,28 +146,28 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onInput, onBac
           <button
             onClick={() => setIsUppercase(!isUppercase)}
             className={cn(
-              "px-4 h-10 sm:h-14 rounded-xl flex items-center justify-center font-bold transition-all active:scale-95",
-              isUppercase ? "bg-indigo-600 text-white" : "bg-zinc-700 text-zinc-400"
+              "px-5 h-10 sm:h-14 rounded-xl flex items-center justify-center font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 border",
+              isUppercase ? "bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-500/20" : "bg-slate-800 text-slate-400 border-slate-700/50 hover:bg-slate-700 hover:text-slate-100"
             )}
           >
             Shift
           </button>
           <button
             onClick={onBackspace}
-            className="px-4 h-10 sm:h-14 bg-zinc-700 text-white rounded-xl flex items-center justify-center font-medium active:bg-zinc-600 active:scale-95"
+            className="px-5 h-10 sm:h-14 bg-slate-800 text-slate-100 rounded-xl flex items-center justify-center font-black text-[10px] uppercase tracking-widest active:bg-slate-700 active:scale-95 border border-slate-700/50 hover:bg-red-900/20 hover:text-red-400 hover:border-red-500/30 transition-all"
           >
             Backspace
           </button>
           <button
             onClick={() => onInput(' ')}
-            className="flex-1 h-10 sm:h-14 bg-zinc-800 text-white rounded-xl flex items-center justify-center font-medium active:bg-zinc-700 active:scale-95"
+            className="flex-1 h-10 sm:h-14 bg-slate-800 text-slate-100 rounded-xl flex items-center justify-center font-black text-[10px] uppercase tracking-[0.3em] active:bg-slate-700 active:scale-95 border border-slate-700/50 hover:bg-slate-700/50 transition-all shadow-inner"
           >
             Space
           </button>
           {onEnter && (
             <button
               onClick={onEnter}
-              className="px-4 h-10 sm:h-14 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold active:bg-indigo-500 active:scale-95"
+              className="px-6 h-10 sm:h-14 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-[10px] uppercase tracking-widest active:bg-indigo-500 active:scale-95 border border-indigo-500 shadow-lg shadow-indigo-500/20 transition-all"
             >
               Enter
             </button>

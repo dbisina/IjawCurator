@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(where python:*)",
+      "Bash(npx skills:*)",
+      "Bash(python C:UsersUSER.agentsskillsui-ux-pro-maxscriptssearch.py --help)",
+      "Bash(python /c/Users/USER/antigravity-awesome-skills/skills/ui-ux-pro-max/scripts/search.py \"language learning dashboard dark professional\" --design-system -p \"IjawCurator\")",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/antigravity-awesome-skills/skills/ui-ux-pro-max/scripts/search.py \"language learning dashboard dark professional\" --design-system -p \"IjawCurator\")",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/antigravity-awesome-skills/skills/ui-ux-pro-max/scripts/search.py \"dark dashboard curator admin\" --domain style)",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/.claude/skills/ui-ux-pro-max/scripts/search.py \"language learning dark dashboard\" --design-system -p \"IjawCurator\")",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/.claude/skills/ui-ux-pro-max/scripts/search.py \"language learning crowdsource curator dark dashboard gamification\" --design-system -p \"IjawCurator\")",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/.claude/skills/ui-ux-pro-max/scripts/search.py \"dark minimal clean dashboard SaaS\" --domain style -n 3)",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/.claude/skills/ui-ux-pro-max/scripts/search.py \"gamification engagement addictive\" --domain ux -n 4)",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/.claude/skills/ui-ux-pro-max/scripts/search.py \"crowdsource language learning dark gamification community\" --design-system -p \"IjawCurator\")",
+      "Bash(PYTHONIOENCODING=utf-8 python /c/Users/USER/.claude/skills/ui-ux-pro-max/scripts/search.py \"dark clean modern minimal SaaS dashboard\" --domain style -n 2)",
+      "Bash(npm run:*)",
+      "Bash(gcloud --version)",
+      "Bash(gcloud storage:*)",
+      "Bash(firebase --version)",
+      "Bash(firebase projects:list)",
+      "Bash(firebase deploy:*)",
+      "Bash(gcloud auth:*)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(grep -n \"\\\\`\" \"C:\\\\Users\\\\USER\\\\Documents\\\\GitHub\\\\IjawCurator\\\\src\\\\prompts\\\\ijawLanguageContext.ts\")",
+      "Bash(node -e \":*)",
+      "Read(//c/Users/USER/.agents/skills/ui-ux-pro-max/**)",
+      "Bash(node scripts/search.js \"cultural preservation language heritage immersive dark\" --design-system -p \"IjawCurator\")",
+      "Bash(python3 scripts/search.py \"cultural preservation language heritage immersive dark\" --design-system -p \"IjawCurator\")",
+      "WebSearch",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const pkg = require\\(''./package.json''\\); console.log\\(''three:'', pkg.dependencies?.three || pkg.devDependencies?.three || ''NOT FOUND''\\); console.log\\(''framer-motion:'', pkg.dependencies?.[''framer-motion''] || ''NOT FOUND''\\);\")",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

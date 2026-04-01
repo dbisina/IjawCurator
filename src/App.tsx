@@ -11,22 +11,24 @@ import { ChatHistory } from './components/ChatHistory';
 import { SocialSection } from './components/SocialSection';
 import { LeaderboardSection } from './components/LeaderboardSection';
 import { GamificationSection } from './components/GamificationSection';
+import { LandingPage } from './components/LandingPage';
 import { cn } from './lib/utils';
 import { Toaster, toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tutorial } from './components/Tutorial';
 import { useHoverSound } from './hooks/useHoverSound';
-import { 
-  Languages, 
-  LogOut, 
-  User as UserIcon, 
-  ShieldCheck, 
-  Plus, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Mic2, 
-  Keyboard, 
+import {
+  Languages,
+  LogOut,
+  User as UserIcon,
+  ShieldCheck,
+  Plus,
+  AlertTriangle,
+  CheckCircle2,
+  Mic2,
+  Keyboard,
   ChevronRight,
+  ChevronDown,
   RefreshCw,
   Search,
   Check,
@@ -45,7 +47,12 @@ import {
   Settings,
   Flame,
   Loader2,
-  ThumbsUp
+  ThumbsUp,
+  MoreHorizontal,
+  Home,
+  BookOpen,
+  Star,
+  LogIn
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { UserProfile, Achievement, Challenge, WordEntry, CorrectionEntry } from './types';
@@ -66,36 +73,41 @@ interface ActivityLog {
 const DialectSelector = ({ onSelect }: { onSelect: (dialect: string) => void }) => {
   const { playHover } = useHoverSound();
   return (
-    <div id="dialect-selector" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+    <div id="dialect-selector" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
       {IJAW_DIALECTS.map((dialect) => (
         <button
           key={dialect}
           onMouseEnter={playHover}
           onClick={() => onSelect(dialect)}
-          className="p-6 bg-zinc-900 border border-zinc-800 rounded-2xl text-center hover:border-indigo-500 hover:bg-indigo-500/5 transition-all group"
+          className="p-6 bg-slate-900/40 border border-slate-800/50 rounded-xl text-center hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group shadow-sm hover:shadow-md hover:shadow-amber-500/10"
         >
-          <span className="block text-lg font-medium text-white group-hover:text-indigo-400">{dialect}</span>
+          <span className="block text-lg font-semibold text-slate-200 group-hover:text-amber-300 transition-colors">{dialect}</span>
         </button>
       ))}
     </div>
   );
 };
 
-const WordCard = ({ 
-  word, 
-  index, 
+const WordCard = ({
+  word,
+  index,
   isAdmin,
   pendingCorrection,
-  onFlag, 
+  approvedCorrection,
+  onFlag,
+  onUnflag,
   onVerify,
   onInlineCorrect,
   onAgree
-}: { 
-  word: WordEntry, 
-  index: number, 
+}: {
+  key?: string | number,
+  word: WordEntry,
+  index: number,
   isAdmin?: boolean,
   pendingCorrection?: CorrectionEntry,
-  onFlag: () => void, 
+  approvedCorrection?: CorrectionEntry,
+  onFlag: () => void,
+  onUnflag: () => void,
   onVerify?: () => void,
   onInlineCorrect: (word: string, meaning: string, pronunciation: string, audioUrl?: string) => Promise<void>,
   onAgree?: (correctionId: string) => void
@@ -108,20 +120,28 @@ const WordCard = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const handlePlay = async () => {
     if (isPlaying) return;
     setIsPlaying(true);
     try {
-      // Use human audio if available and not currently editing the word text
-      if (word.audioUrl && !isEditing) {
+      // Always prefer human-recorded audio when available
+      if (word.audioUrl) {
         const audio = new Audio(word.audioUrl);
         audio.onended = () => setIsPlaying(false);
         audio.onerror = () => {
           setIsPlaying(false);
           toast.error("Failed to play audio sample");
         };
-        audio.play();
+        audio.play().catch(() => { setIsPlaying(false); toast.error("Failed to play audio"); });
+        return;
+      }
+
+      // For manually entered words with no uploaded audio, don't use AI TTS
+      if (!word.isAiGenerated) {
+        setIsPlaying(false);
+        toast.info("No audio recorded for this word yet. Edit and record a pronunciation to add one.");
         return;
       }
 
@@ -148,13 +168,23 @@ const WordCard = ({
       source.start();
     } catch (error) {
       console.error("Playback error:", error);
-      toast.error("Failed to play pronunciation");
-      setIsPlaying(false);
+      // Fallback: browser Web Speech API
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(editedWord);
+        utterance.lang = 'en';
+        utterance.rate = 0.85;
+        utterance.onend = () => setIsPlaying(false);
+        utterance.onerror = () => setIsPlaying(false);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        toast.error("Failed to play pronunciation");
+        setIsPlaying(false);
+      }
     }
   };
 
   const statusColors = {
-    pending: "border-zinc-800 bg-zinc-900/50",
+    pending: "border-slate-800/50 bg-slate-900/30",
     verified: "border-emerald-500/30 bg-emerald-500/5",
     flagged: "border-red-500/30 bg-red-500/5"
   };
@@ -169,6 +199,7 @@ const WordCard = ({
       await onInlineCorrect(editedWord, word.meaning, editedPronunciation, uploadedAudioUrl || undefined);
       setIsEditing(false);
       setUploadedAudioUrl(null);
+      setIsCompleting(true);
     } catch (error) {
       console.error("Submit error:", error);
     } finally {
@@ -177,15 +208,21 @@ const WordCard = ({
   };
 
   return (
-    <motion.div 
+    <motion.div
       layout
       id={index === 0 ? "first-word-card" : undefined}
       initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+      animate={isCompleting
+        ? { scale: [1, 1.02, 1], transition: { duration: 0.35 } }
+        : { opacity: 1, scale: 1 }
+      }
+      exit={{ opacity: 0, scale: 0.88, y: -12, transition: { duration: 0.22, ease: "easeIn" } }}
       onMouseEnter={playHover}
       className={cn(
-        "border p-6 rounded-2xl flex flex-col gap-4 transition-all duration-300",
-        statusColors[word.status]
+        "relative border p-5 rounded-xl flex flex-col gap-4 transition-colors duration-300 shadow-sm overflow-hidden",
+        isCompleting
+          ? "border-emerald-500/50 bg-emerald-500/5 shadow-emerald-500/10"
+          : statusColors[word.status]
       )}
     >
       <div className="flex justify-between items-start">
@@ -193,32 +230,32 @@ const WordCard = ({
           <div className="flex items-center gap-2 mb-1">
             {isEditing ? (
               <div className="flex-1 flex items-center gap-2">
-                <div className="space-y-1 flex-1">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase">Ijaw Word</p>
+                <div className="space-y-1.5 flex-1">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Ijaw Word</p>
                   <input
                     type="text"
                     value={editedWord}
                     onChange={(e) => setEditedWord(e.target.value)}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-lg font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-lg px-3 py-2 text-lg font-semibold text-white focus:outline-none focus:border-amber-500 transition-colors"
                     placeholder="Ijaw word..."
                   />
                 </div>
                 <button 
                   onClick={handlePlay}
                   disabled={isPlaying}
-                  className="mt-4 p-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+                  className="mt-5 p-2 bg-slate-800/50 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white transition-colors disabled:opacity-50 border border-slate-700/50"
                   title="Play pronunciation"
                 >
                   {isPlaying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <h3 className="text-2xl font-bold text-white tracking-tight">{word.word}</h3>
+              <div className="flex items-center gap-3">
+                <h3 className="text-2xl font-semibold text-white" style={{fontFamily: "'Cormorant Garamond', serif"}}>{word.word}</h3>
                 <button 
                   onClick={handlePlay}
                   disabled={isPlaying}
-                  className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+                  className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-50 border border-transparent hover:border-slate-700/50"
                   title="Play pronunciation"
                 >
                   {isPlaying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
@@ -227,29 +264,29 @@ const WordCard = ({
             )}
           </div>
           {isEditing ? (
-            <div className="space-y-1 mt-2">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase">Pronunciation</p>
+            <div className="space-y-1.5 mt-2">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Pronunciation</p>
               <input
                 type="text"
                 value={editedPronunciation}
                 onChange={(e) => setEditedPronunciation(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                className="w-full bg-slate-800 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-mono"
                 placeholder="Pronunciation..."
               />
             </div>
           ) : (
-            <p className="text-sm text-zinc-500 font-mono">/{word.pronunciation}/</p>
+            <p className="text-xs text-slate-500 font-mono tracking-wider italic">/{word.pronunciation || 'no-guide'}/</p>
           )}
         </div>
         <div className="flex flex-col items-end gap-2">
           {word.isAiGenerated && (
-            <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 text-[9px] font-bold uppercase tracking-widest rounded border border-indigo-500/20">
+            <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-bold uppercase tracking-widest rounded border border-amber-500/20">
               AI Draft
             </span>
           )}
           <span className={cn(
-            "px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded border",
-            word.status === 'pending' && "bg-zinc-800 text-zinc-400 border-zinc-700",
+            "px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] rounded-lg border",
+            word.status === 'pending' && "bg-slate-800/50 text-slate-500 border-slate-700/50",
             word.status === 'verified' && "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
             word.status === 'flagged' && "bg-red-500/10 text-red-400 border-red-500/20"
           )}>
@@ -262,21 +299,21 @@ const WordCard = ({
                 Correction Pending
               </span>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] text-zinc-500 font-bold">
+                <span className="text-[10px] text-slate-500 font-black uppercase tracking-tighter">
                   {pendingCorrection.agreedBy?.length || 0}/{AGREEMENT_THRESHOLD} Agree
                 </span>
                 {onAgree && pendingCorrection.submittedBy !== auth.currentUser?.uid && (
                   <button
                     onClick={() => onAgree(pendingCorrection.id)}
                     className={cn(
-                      "p-1 rounded transition-all",
+                      "p-1.5 rounded-lg transition-all border",
                       pendingCorrection.agreedBy?.includes(auth.currentUser?.uid || '') 
-                        ? "bg-indigo-600 text-white" 
-                        : "bg-zinc-800 text-zinc-400 hover:text-white"
+                        ? "bg-amber-700 border-amber-500 text-white" 
+                        : "bg-slate-800 border-slate-700/50 text-slate-500 hover:text-white"
                     )}
                     title="Agree with this correction"
                   >
-                    <ThumbsUp className="w-3 h-3" />
+                    <ThumbsUp className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -286,17 +323,17 @@ const WordCard = ({
       </div>
       
       <div className={cn(
-        "py-2 bg-black/20 rounded-xl p-4 border transition-colors",
-        isEditing ? "border-indigo-500/20 bg-indigo-500/5" : "border-zinc-800/50"
+        "flex flex-col gap-1 p-4 rounded-xl border transition-colors",
+        isEditing ? "border-amber-500/20 bg-amber-500/5" : "bg-slate-950/30 border-slate-800/50 shadow-inner"
       )}>
-        <p className="text-xs font-bold text-zinc-600 uppercase tracking-widest mb-1">
+        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
           Meaning (English)
         </p>
-        <p className="text-zinc-300 text-lg leading-snug">{word.meaning}</p>
+        <p className="text-slate-300 text-[1.05rem] leading-relaxed">{word.meaning}</p>
       </div>
 
         {isEditing && (
-          <div className="pt-4 border-t border-zinc-800/50">
+          <div className="pt-5 border-t border-slate-800/50">
             <VoiceRecorder 
               wordId={word.id} 
               dialect={word.dialect} 
@@ -309,7 +346,7 @@ const WordCard = ({
           </div>
         )}
 
-        <div className="flex gap-2 mt-auto pt-2">
+        <div className="flex gap-2 mt-auto pt-3">
         {isEditing ? (
           <>
             <button 
@@ -319,14 +356,14 @@ const WordCard = ({
                 setEditedPronunciation(word.pronunciation);
                 setUploadedAudioUrl(null);
               }}
-              className="flex-1 py-2.5 bg-zinc-800 text-zinc-400 hover:text-white rounded-xl text-sm font-bold transition-all"
+              className="flex-1 py-2.5 bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-white rounded-xl text-sm font-medium transition-all border border-slate-700/50"
             >
               Cancel
             </button>
             <button 
               onClick={handleSubmit}
               disabled={isSubmitting || isUploading}
-              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+              className="flex-1 py-2.5 bg-amber-700 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm shadow-amber-700/20 disabled:opacity-50"
             >
               {isSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : (isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />)}
               {isUploading ? "Uploading..." : "Submit"}
@@ -339,22 +376,26 @@ const WordCard = ({
               onClick={() => setIsEditing(true)}
               disabled={!!pendingCorrection && !isAdmin}
               className={cn(
-                "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg",
+                "flex-1 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm",
                 !!pendingCorrection && !isAdmin 
-                  ? "bg-zinc-800 text-zinc-500 cursor-not-allowed" 
-                  : "bg-white text-black hover:bg-zinc-200"
+                  ? "bg-slate-800/50 text-slate-500 border border-slate-800/50 cursor-not-allowed" 
+                  : "bg-slate-100 text-slate-900 hover:bg-white"
               )}
             >
               {!!pendingCorrection && !isAdmin ? (
-                <>{pendingCorrection.submittedBy === auth.currentUser?.uid ? "Your Correction Pending" : "Reviewing..."}</>
+                <>{pendingCorrection.submittedBy === auth.currentUser?.uid ? "Correction Pending" : "Reviewing..."}</>
               ) : (
                 <><Plus className="w-4 h-4" /> {isAdmin ? "Edit & Verify" : "Verify / Edit"}</>
               )}
             </button>
             {isAdmin && word.status === 'pending' && (
-              <button 
-                onClick={onVerify}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center shadow-lg"
+              <button
+                onClick={async () => {
+                  setIsCompleting(true);
+                  await new Promise(r => setTimeout(r, 350));
+                  onVerify?.();
+                }}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center shadow-sm shadow-emerald-600/20"
                 title="Quick Verify"
               >
                 <Check className="w-4 h-4" />
@@ -363,13 +404,36 @@ const WordCard = ({
             <button 
               id={index === 0 ? "flag-btn-step" : undefined}
               onClick={onFlag}
-              className="px-4 py-2.5 bg-zinc-800 hover:bg-red-900/30 text-red-500 rounded-xl text-sm font-medium transition-colors border border-zinc-700"
+              className="px-4 py-2.5 bg-slate-800/50 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl text-sm font-medium transition-colors border border-slate-700/50 hover:border-red-500/30"
             >
               <AlertTriangle className="w-4 h-4" />
             </button>
           </>
         )}
       </div>
+
+      {/* Completion flash overlay */}
+      <AnimatePresence>
+        {isCompleting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 rounded-xl flex items-center justify-center pointer-events-none"
+          >
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.2, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              className="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40"
+            >
+              <Check className="w-7 h-7 text-white stroke-[2.5]" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
@@ -512,13 +576,13 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl space-y-6">
-          <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center">
-            <FileSpreadsheet className="w-6 h-6 text-indigo-400" />
+        <div className="bg-slate-900/40 border border-slate-800/50 p-8 rounded-xl shadow-xl space-y-6 backdrop-blur-md">
+          <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20">
+            <FileSpreadsheet className="w-6 h-6 text-amber-400" />
           </div>
           <div>
-            <h3 className="text-xl font-bold mb-2">Export CSV</h3>
-            <p className="text-zinc-500 text-sm leading-relaxed">
+            <h3 className="text-xl font-black text-slate-100 tracking-tight mb-2">Export CSV</h3>
+            <p className="text-slate-500 text-sm leading-relaxed">
               Download a spreadsheet containing all words, phrases, and translations. This is perfect for data analysis or quick review.
             </p>
           </div>
@@ -526,20 +590,20 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
             id="export-csv-btn"
             onClick={handleExportCSV}
             disabled={isExporting}
-            className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-3 border border-slate-700/50 shadow-inner"
           >
             <Download className="w-4 h-4" />
             Download CSV
           </button>
         </div>
 
-        <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl space-y-6">
-          <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+        <div className="bg-slate-900/40 border border-slate-800/50 p-8 rounded-xl shadow-xl space-y-6 backdrop-blur-md">
+          <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
             <Music className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-xl font-bold mb-2">Full Dataset (ZIP)</h3>
-            <p className="text-zinc-500 text-sm leading-relaxed">
+            <h3 className="text-xl font-black text-slate-100 tracking-tight mb-2">Full Dataset (ZIP)</h3>
+            <p className="text-slate-500 text-sm leading-relaxed">
               Export all text data along with their corresponding audio recordings. Each recording is matched to its text entry in a metadata file.
             </p>
           </div>
@@ -548,22 +612,22 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
               id="export-full-btn"
               onClick={handleExportFull}
               disabled={isExporting}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 border border-emerald-500"
             >
               {isExporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Export Full Dataset
             </button>
             {isExporting && progress > 0 && (
               <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase">
+                <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
                   <span>Processing Audios</span>
                   <span>{progress}%</span>
                 </div>
-                <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
-                    className="h-full bg-emerald-500"
+                    className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
                   />
                 </div>
               </div>
@@ -579,12 +643,12 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex gap-4 items-center">
           <h2 className="text-2xl font-bold">Admin Panel</h2>
-          <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800/50">
             <button 
               onClick={() => setAdminTab('dataset')}
               className={cn(
-                "px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all",
-                adminTab === 'dataset' ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all",
+                adminTab === 'dataset' ? "bg-slate-800 text-white shadow-sm border border-slate-700/50" : "text-slate-500 hover:text-slate-300"
               )}
             >
               Dataset
@@ -592,8 +656,8 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
             <button 
               onClick={() => setAdminTab('logs')}
               className={cn(
-                "px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all",
-                adminTab === 'logs' ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all",
+                adminTab === 'logs' ? "bg-slate-800 text-white shadow-sm border border-slate-700/50" : "text-slate-500 hover:text-slate-300"
               )}
             >
               Activity Log
@@ -602,8 +666,8 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
               id="export-tab-btn"
               onClick={() => setAdminTab('export')}
               className={cn(
-                "px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all",
-                adminTab === 'export' ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all",
+                adminTab === 'export' ? "bg-slate-800 text-white shadow-sm border border-slate-700/50" : "text-slate-500 hover:text-slate-300"
               )}
             >
               Export
@@ -613,12 +677,12 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
         
         {adminTab === 'dataset' && (
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1 rounded-xl border border-zinc-800">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Dialect:</span>
+            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1 rounded-xl border border-slate-800/50">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Dialect:</span>
               <select 
                 value={selectedDialect || ''} 
                 onChange={(e) => onDialectChange(e.target.value || null)}
-                className="bg-transparent text-xs font-bold text-indigo-400 focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs font-black text-amber-400 focus:outline-none cursor-pointer p-1"
               >
                 <option value="">All Dialects</option>
                 {IJAW_DIALECTS.map(d => (
@@ -626,14 +690,14 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
                 ))}
               </select>
             </div>
-            <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800/50">
               {(['all', 'pending', 'verified', 'flagged'] as const).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
                   className={cn(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all",
-                    filter === f ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                    "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all",
+                    filter === f ? "bg-amber-700 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"
                   )}
                 >
                   {f}
@@ -647,52 +711,52 @@ const AdminDashboard = ({ adminTab, setAdminTab, selectedDialect, onDialectChang
       {adminTab === 'dataset' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {allWords.map((word) => (
-            <div key={word.id} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl space-y-2">
+            <div key={word.id} className="bg-slate-900/40 border border-slate-800/50 p-5 rounded-xl space-y-3 hover:bg-slate-800/40 transition-colors shadow-sm group">
               <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-lg font-bold">{word.word}</p>
-                  <p className="text-xs text-indigo-400 font-medium uppercase">{word.dialect}</p>
+                <div className="space-y-0.5">
+                  <p className="text-lg font-black text-slate-100 tracking-tight group-hover:text-amber-400 transition-colors">{word.word}</p>
+                  <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest">{word.dialect}</p>
                 </div>
                 <span className={cn(
-                  "px-2 py-0.5 text-[8px] font-bold uppercase rounded border",
-                  word.status === 'pending' && "border-zinc-700 text-zinc-500",
-                  word.status === 'verified' && "border-emerald-500/30 text-emerald-500",
-                  word.status === 'flagged' && "border-red-500/30 text-red-500"
+                  "px-2 py-0.5 text-[8px] font-black uppercase rounded border tracking-tighter",
+                  word.status === 'pending' && "border-slate-700/50 text-slate-500 bg-slate-800/30",
+                  word.status === 'verified' && "border-emerald-500/30 text-emerald-500 bg-emerald-500/5",
+                  word.status === 'flagged' && "border-red-500/30 text-red-500 bg-red-500/5"
                 )}>
                   {word.status}
                 </span>
               </div>
-              <p className="text-sm text-zinc-400 line-clamp-2">{word.meaning}</p>
+              <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">{word.meaning}</p>
             </div>
           ))}
         </div>
       ) : adminTab === 'logs' ? (
-        <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl overflow-hidden">
+        <div className="bg-slate-900/30 border border-slate-800/50 rounded-xl overflow-hidden shadow-xl">
           <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-900 text-zinc-500 uppercase text-[10px] font-bold tracking-widest">
+            <thead className="bg-slate-950 text-slate-500 uppercase text-[10px] font-black tracking-widest border-b border-slate-800/50">
               <tr>
-                <th className="px-6 py-4">Timestamp</th>
-                <th className="px-6 py-4">User</th>
-                <th className="px-6 py-4">Action</th>
-                <th className="px-6 py-4">Details</th>
+                <th className="px-6 py-5">Timestamp</th>
+                <th className="px-6 py-5">User</th>
+                <th className="px-6 py-5">Action</th>
+                <th className="px-6 py-5">Details</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800">
+            <tbody className="divide-y divide-slate-800/50">
               {logs.map((log) => (
-                <tr key={log.id} className="hover:bg-zinc-900/50 transition-colors">
-                  <td className="px-6 py-4 text-zinc-500 font-mono text-xs">
+                <tr key={log.id} className="hover:bg-slate-800/30 transition-colors group">
+                  <td className="px-6 py-4 text-slate-500 font-mono text-xs">
                     {log.timestamp?.toDate().toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
-                    <p className="font-medium">{log.userEmail}</p>
-                    <p className="text-[10px] text-zinc-600 font-mono">{log.userId}</p>
+                    <p className="font-black text-slate-300 tracking-tight">{log.userEmail}</p>
+                    <p className="text-[9px] text-slate-600 font-mono group-hover:text-slate-500 transition-colors">{log.userId}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-zinc-800 rounded text-[10px] font-bold uppercase">
+                    <span className="px-2 py-1 bg-slate-800/50 border border-slate-700/50 rounded-lg text-[9px] font-black uppercase tracking-tighter text-slate-400 group-hover:text-amber-400 transition-colors shadow-inner">
                       {log.action}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-zinc-400">
+                  <td className="px-6 py-4 text-slate-400 font-medium">
                     {log.details}
                   </td>
                 </tr>
@@ -831,7 +895,7 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
     }
   };
 
-  if (loading) return <div className="py-20 text-center text-zinc-500">Loading vetting queue...</div>;
+  if (loading) return <div className="py-20 text-center text-slate-500">Loading vetting queue...</div>;
 
   return (
     <div className="space-y-6">
@@ -843,18 +907,18 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
               onClick={() => setFilterByDialect(!filterByDialect)}
               className={cn(
                 "px-4 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2",
-                filterByDialect ? "bg-indigo-600/10 border-indigo-500/50 text-indigo-400" : "bg-zinc-900 border-zinc-800 text-zinc-500"
+                filterByDialect ? "bg-amber-700/10 border-amber-500/50 text-amber-400" : "bg-slate-900/50 border-slate-800/50 text-slate-500 hover:text-slate-300"
               )}
             >
               {filterByDialect ? `Only ${selectedDialect}` : "All Dialects"}
             </button>
           )}
-          <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+          <div className="flex bg-slate-950/50 p-1 rounded-xl border border-slate-800/50">
             <button 
               onClick={() => setVettingTab('corrections')}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                vettingTab === 'corrections' ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                vettingTab === 'corrections' ? "bg-amber-700 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"
               )}
             >
               Corrections ({corrections.length})
@@ -863,7 +927,7 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
               onClick={() => setVettingTab('chat')}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                vettingTab === 'chat' ? "bg-emerald-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                vettingTab === 'chat' ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"
               )}
             >
               Chat Sessions ({chatSessions.length})
@@ -872,7 +936,7 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
               onClick={() => setVettingTab('voice')}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                vettingTab === 'voice' ? "bg-amber-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                vettingTab === 'voice' ? "bg-amber-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"
               )}
             >
               Voice Samples ({voiceExercises.length})
@@ -883,10 +947,10 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
 
       {vettingTab === 'corrections' ? (
         corrections.length === 0 ? (
-          <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800">
-            <CheckCircle2 className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-zinc-400">All caught up!</h3>
-            <p className="text-zinc-600 mt-2">There are no pending corrections to review.</p>
+          <div className="text-center py-20 bg-slate-950/30 rounded-xl border border-dashed border-slate-800/50">
+            <CheckCircle2 className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-slate-300">All caught up!</h3>
+            <p className="text-slate-500 mt-2">There are no pending corrections to review.</p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -896,36 +960,36 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
                 layout
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex flex-col gap-6"
+                className="bg-slate-900/40 border border-slate-800/50 p-6 rounded-xl flex flex-col gap-6 shadow-sm"
               >
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Correction for:</span>
-                      <span className="text-sm font-mono text-indigo-400">{corr.wordId}</span>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Correction for:</span>
+                      <span className="text-sm font-mono text-amber-400">{corr.wordId}</span>
                       {corr.dialect && (
-                        <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-[10px] font-bold uppercase rounded border border-zinc-700">
+                        <span className="px-2 py-0.5 bg-slate-800/50 text-slate-400 text-[10px] font-bold uppercase rounded border border-slate-700/50">
                           {corr.dialect}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800">
-                        <ThumbsUp className="w-3 h-3 text-indigo-400" />
-                        <span className="text-[10px] font-bold text-zinc-400">
+                      <div className="flex items-center gap-2 px-3 py-1 bg-slate-950/50 rounded-lg border border-slate-800/50 shadow-inner">
+                        <ThumbsUp className="w-3 h-3 text-amber-400" />
+                        <span className="text-[10px] font-bold text-slate-400">
                           {corr.agreedBy?.length || 0}/{AGREEMENT_THRESHOLD} Agreements
                         </span>
                       </div>
                       <div className="flex gap-2">
                         <button 
                           onClick={() => handleCorrectionAction(corr, 'rejected')}
-                          className="px-4 py-1.5 bg-zinc-800 hover:bg-red-900/20 text-red-500 rounded-lg text-xs font-bold transition-colors border border-zinc-700"
+                          className="px-4 py-1.5 bg-slate-800/50 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-lg text-xs font-bold transition-colors border border-slate-700/50 hover:border-red-500/30"
                         >
                           Reject
                         </button>
                         <button 
                           onClick={() => handleCorrectionAction(corr, 'approved')}
-                          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-600/20"
+                          className="px-4 py-1.5 bg-amber-700 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-amber-700/20 border border-transparent"
                         >
                           Approve
                         </button>
@@ -933,45 +997,49 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-zinc-950/50 rounded-xl border border-zinc-800/50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-950/30 rounded-xl border border-slate-800/50">
                     <div className="space-y-4">
-                      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest border-b border-zinc-800 pb-1">Current Version</p>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1 flex items-center gap-2">
+                         Current Version
+                      </p>
                       <div className="space-y-2">
                         <div>
-                          <p className="text-xs text-zinc-500 uppercase font-bold">Word</p>
-                          <p className="text-lg font-bold text-zinc-400">{corr.originalWord || 'N/A'}</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Word</p>
+                          <p className="text-lg font-bold text-slate-400">{corr.originalWord || 'N/A'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-zinc-500 uppercase font-bold">Meaning</p>
-                          <p className="text-sm text-zinc-500">{corr.originalMeaning || 'N/A'}</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Meaning</p>
+                          <p className="text-[1.05rem] text-slate-400 leading-snug">{corr.originalMeaning || 'N/A'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-zinc-500 uppercase font-bold">Pronunciation</p>
-                          <p className="text-xs font-mono text-zinc-600">/{corr.originalPronunciation || 'N/A'}/</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Pronunciation</p>
+                          <p className="text-xs font-mono text-slate-500">/{corr.originalPronunciation || 'N/A'}/</p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-4 border-l border-zinc-800 pl-6">
-                      <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest border-b border-indigo-500/20 pb-1">Suggested Correction</p>
+                    <div className="space-y-4 border-l border-slate-800/50 pl-6">
+                      <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest border-b border-amber-500/20 pb-1 flex items-center gap-2">
+                        Suggested Correction
+                      </p>
                       <div className="space-y-2">
                         <div>
-                          <p className="text-xs text-zinc-500 uppercase font-bold">Word</p>
-                          <p className="text-lg font-bold text-white">{corr.suggestedWord}</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Word</p>
+                          <p className="text-lg font-bold text-slate-100">{corr.suggestedWord}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-zinc-500 uppercase font-bold">Meaning</p>
-                          <p className="text-sm text-zinc-300">{corr.suggestedMeaning}</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Meaning</p>
+                          <p className="text-[1.05rem] text-slate-300 leading-snug">{corr.suggestedMeaning}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-zinc-500 uppercase font-bold">Pronunciation</p>
-                          <p className="text-xs font-mono text-indigo-400">/{corr.suggestedPronunciation}/</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Pronunciation</p>
+                          <p className="text-xs font-mono text-amber-400">/{corr.suggestedPronunciation}/</p>
                         </div>
                         {corr.audioUrl && (
                           <div className="pt-2">
-                            <button 
-                              onClick={() => new Audio(corr.audioUrl).play()}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-[10px] font-bold transition-all border border-indigo-500/20 group"
+                             <button 
+                              onClick={() => new Audio(corr.audioUrl).play().catch(() => toast.error("Failed to play audio"))}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-600/20 text-amber-400 rounded-lg text-[10px] font-bold transition-all border border-amber-500/20 group"
                             >
                               <Play className="w-3 h-3 fill-current group-hover:scale-110 transition-transform" />
                               Play Suggested Audio
@@ -983,9 +1051,9 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
                   </div>
 
                   {corr.reason && (
-                    <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800">
-                      <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Reason for Correction</p>
-                      <p className="text-sm text-zinc-400 italic">"{corr.reason}"</p>
+                    <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/50 shadow-inner">
+                      <p className="text-[10px] text-slate-500 uppercase font-semibold mb-1">Reason for Correction</p>
+                      <p className="text-sm text-slate-400 italic">"{corr.reason}"</p>
                     </div>
                   )}
                 </div>
@@ -995,10 +1063,10 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
         )
       ) : vettingTab === 'chat' ? (
         chatSessions.length === 0 ? (
-          <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800">
-            <MessageSquare className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-zinc-400">No chat sessions</h3>
-            <p className="text-zinc-600 mt-2">There are no pending chat translations to review.</p>
+          <div className="text-center py-20 bg-slate-950/30 rounded-2xl border border-dashed border-slate-800/50">
+            <MessageSquare className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-slate-300">No chat sessions</h3>
+            <p className="text-slate-500 mt-2">There are no pending chat translations to review.</p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -1008,42 +1076,42 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
                 layout
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex flex-col gap-6"
+                className="bg-slate-900/40 border border-slate-800/50 p-6 rounded-xl flex flex-col gap-6 shadow-sm"
               >
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Chat Session:</span>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Chat Session:</span>
                       <span className="text-sm font-mono text-emerald-400">{session.dialect}</span>
                     </div>
                     <div className="flex gap-2">
                       <button 
                         onClick={() => handleChatAction(session, 'rejected')}
-                        className="px-4 py-1.5 bg-zinc-800 hover:bg-red-900/20 text-red-500 rounded-lg text-xs font-bold transition-colors border border-zinc-700"
+                        className="px-4 py-1.5 bg-slate-800/50 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-lg text-xs font-bold transition-colors border border-slate-700/50 hover:border-red-500/30"
                       >
                         Reject
                       </button>
                       <button 
                         onClick={() => handleChatAction(session, 'verified')}
-                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-600/20"
+                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-emerald-600/20 border border-transparent"
                       >
                         Verify
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-zinc-950/50 rounded-xl border border-zinc-800/50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-950/30 rounded-xl border border-slate-800/50">
                     <div className="space-y-2">
-                      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest border-b border-zinc-800 pb-1">AI Prompt (English)</p>
-                      <p className="text-lg font-medium text-white italic">"{session.englishPhrase}"</p>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/50 pb-1">AI Prompt (English)</p>
+                      <p className="text-lg font-medium text-slate-300 italic">"{session.englishPhrase}"</p>
                     </div>
-                    <div className="space-y-2 border-l border-zinc-800 pl-6">
+                    <div className="space-y-2 border-l border-slate-800/50 pl-6">
                       <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest border-b border-emerald-500/20 pb-1">User Translation (Ijaw)</p>
                       <div className="flex items-center justify-between gap-4">
                         <p className="text-xl font-bold text-emerald-400">{session.ijawTranslation}</p>
                         {session.audioUrl && (
                           <button 
-                            onClick={() => new Audio(session.audioUrl).play()}
+                            onClick={() => new Audio(session.audioUrl).play().catch(() => toast.error("Failed to play audio"))}
                             className="p-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full transition-all border border-emerald-500/20 group"
                             title="Play recording"
                           >
@@ -1060,10 +1128,10 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
         )
       ) : (
         voiceExercises.length === 0 ? (
-          <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800">
-            <Mic2 className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-zinc-400">No voice samples</h3>
-            <p className="text-zinc-600 mt-2">There are no pending voice exercises to review.</p>
+          <div className="text-center py-20 bg-slate-950/30 rounded-2xl border border-dashed border-slate-800/50">
+            <Mic2 className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-slate-300">No voice samples</h3>
+            <p className="text-slate-500 mt-2">There are no pending voice exercises to review.</p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -1073,38 +1141,38 @@ const VettingPanel = ({ selectedDialect }: { selectedDialect: string | null }) =
                 layout
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex flex-col gap-6"
+                className="bg-slate-900/40 border border-slate-800/50 p-6 rounded-xl flex flex-col gap-6 shadow-sm"
               >
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Voice Sample for:</span>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Voice Sample for:</span>
                       <span className="text-sm font-mono text-amber-400">{exercise.wordId}</span>
                     </div>
                     <div className="flex gap-2">
                       <button 
                         onClick={() => handleVoiceAction(exercise, 'rejected')}
-                        className="px-4 py-1.5 bg-zinc-800 hover:bg-red-900/20 text-red-500 rounded-lg text-xs font-bold transition-colors border border-zinc-700"
+                        className="px-4 py-1.5 bg-slate-800/50 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-lg text-xs font-bold transition-colors border border-slate-700/50 hover:border-red-500/30"
                       >
                         Reject
                       </button>
                       <button 
                         onClick={() => handleVoiceAction(exercise, 'verified')}
-                        className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-amber-600/20"
+                        className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-amber-600/20 border border-transparent"
                       >
                         Verify
                       </button>
                     </div>
                   </div>
 
-                  <div className="p-4 bg-zinc-950/50 rounded-xl border border-zinc-800/50 flex items-center justify-between">
+                  <div className="p-4 bg-slate-950/30 rounded-xl border border-slate-800/50 flex items-center justify-between">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Submitted By</p>
-                      <p className="text-sm text-white">{exercise.userEmail}</p>
-                      <p className="text-[10px] text-zinc-500 uppercase">{exercise.dialect}</p>
+                      <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Submitted By</p>
+                      <p className="text-sm text-slate-200">{exercise.userEmail}</p>
+                      <p className="text-[10px] text-slate-500 uppercase">{exercise.dialect}</p>
                     </div>
                     <button 
-                      onClick={() => new Audio(exercise.audioUrl).play()}
+                      onClick={() => new Audio(exercise.audioUrl).play().catch(() => toast.error("Failed to play audio"))}
                       className="p-4 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-full transition-all border border-amber-500/20 group"
                       title="Play recording"
                     >
@@ -1234,22 +1302,26 @@ export default function App() {
   };
 
   const Login = () => (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white p-4 relative overflow-hidden">
+      {/* Background Orbs */}
+      <div className="absolute top-0 -left-20 w-96 h-96 bg-amber-700/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 -right-20 w-96 h-96 bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+      
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl shadow-2xl text-center"
+        className="max-w-md w-full bg-slate-900/40 backdrop-blur-3xl border border-slate-800/50 p-10 rounded-xl shadow-[0_50px_100px_-20px_rgba(0,0,0,0.7)] text-center relative z-10"
       >
-        <div className="w-20 h-20 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <Languages className="w-10 h-10 text-indigo-500" />
+        <div className="w-24 h-24 bg-amber-700/20 rounded-xl flex items-center justify-center mx-auto mb-8 border border-amber-500/20 shadow-2xl">
+          <Languages className="w-12 h-12 text-amber-400" />
         </div>
-        <h1 className="text-3xl font-bold mb-2">Ijaw Language Curator</h1>
-        <p className="text-zinc-400 mb-8">Help us build the most accurate dataset for the Ijaw language and its dialects.</p>
+        <h1 className="text-4xl font-black mb-3 tracking-tighter text-slate-50">Izonate</h1>
+        <p className="text-slate-400 mb-10 leading-relaxed font-medium">Help us build the most accurate dataset for the Ijaw language and its dialects.</p>
         <button
           onClick={handleLogin}
-          className="w-full py-4 bg-white text-black font-semibold rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-3"
+          className="w-full py-4 bg-slate-50 text-slate-950 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-white transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 shadow-xl"
         >
-          <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+          <img src="https://www.google.com/favicon.ico" className="w-5 h-5 grayscale" alt="Google" />
           Continue with Google
         </button>
       </motion.div>
@@ -1270,6 +1342,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('easy');
   const [genCount, setGenCount] = useState<number>(5);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const tutorialSteps = [
     {
@@ -1381,6 +1454,7 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      if (u) setLoading(true);
       setUser(u);
       if (u) {
         try {
@@ -1452,7 +1526,9 @@ export default function App() {
             }
           }
         } catch (e) {
-          handleFirestoreError(e, OperationType.GET, `users/${u.uid}`);
+          // Log the error but don't re-throw — re-throwing skips setLoading(false)
+          // which freezes the app. handleFirestoreError logs full auth context.
+          try { handleFirestoreError(e, OperationType.GET, `users/${u.uid}`); } catch {}
         }
       } else {
         setProfile(null);
@@ -1515,7 +1591,7 @@ export default function App() {
     if (!selectedDialect || !user) return;
     setIsGenerating(true);
     try {
-      const newWords = await generateIjawWords(selectedDialect, genCount, difficulty);
+      const newWords = await generateIjawWords(selectedDialect, genCount, difficulty, [], user.uid);
       for (const w of newWords) {
         await addDoc(collection(db, 'words'), {
           ...w,
@@ -1655,20 +1731,35 @@ export default function App() {
     }
   };
 
-  if (loading) return null;
-  if (!user) return <Login />;
+  const handleUnflag = async (wordId: string) => {
+    try {
+      await updateDoc(doc(db, 'words', wordId), { status: 'pending' });
+      await logActivity('WORD_UNFLAGGED', `Removed flag from word ID: ${wordId}`);
+      toast.success("Flag removed — word is pending review again");
+    } catch (error) {
+      console.error("Unflag error:", error);
+      toast.error("Failed to remove flag");
+    }
+  };
 
-  if ((!profile || !profile.username) && !isSettingUpProfile) {
+  if (loading) return null;
+  if (!user) return <LandingPage onEnter={() => {}} />;
+
+  if (!profile || !profile.username) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 text-white">
+      <div className="min-h-screen bg-[#060a12] flex items-center justify-center p-6 text-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+          <div className="absolute top-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full opacity-[0.06]" style={{background: 'radial-gradient(circle, #c9922a 0%, transparent 70%)'}} />
+          <div className="absolute bottom-[-5%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-[0.04]" style={{background: 'radial-gradient(circle, #1a6b6e 0%, transparent 70%)'}} />
+        </div>
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] space-y-8 shadow-2xl"
+          className="max-w-md w-full bg-slate-900/60 backdrop-blur-2xl border border-amber-900/20 p-10 rounded-xl space-y-10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.8)] relative z-10"
         >
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight">Complete Your Profile</h2>
-            <p className="text-zinc-400">Choose a unique username and your primary dialect to get started.</p>
+          <div className="text-center space-y-3">
+            <h2 className="text-5xl font-semibold text-[#f0ede4]" style={{fontFamily: "'Cormorant Garamond', serif"}}>Complete Your Profile</h2>
+            <p className="text-slate-400 font-medium">Choose your identity and primary dialect.</p>
           </div>
           
           <form onSubmit={async (e) => {
@@ -1710,7 +1801,23 @@ export default function App() {
                 createdAt: serverTimestamp()
               }, { merge: true });
               
-              setProfile(prev => prev ? { ...prev, username, preferredDialect: dialect } : null);
+              setProfile(prev => ({
+                uid: user.uid,
+                email: user.email || '',
+                displayName: user.displayName || 'Anonymous',
+                photoURL: user.photoURL || '',
+                role: 'user' as const,
+                points: 0,
+                contributions: 0,
+                createdAt: serverTimestamp(),
+                streak: { current: 1, longest: 1, lastActiveDate: new Date().toISOString().split('T')[0] },
+                achievements: [],
+                challenges: {},
+                ...(prev || {}),
+                username,
+                username_lowercase: username.toLowerCase(),
+                preferredDialect: dialect,
+              }));
               toast.success("Profile updated!");
             } catch (error) {
               console.error("Profile setup error:", error);
@@ -1719,34 +1826,37 @@ export default function App() {
               setIsSettingUpProfile(false);
             }
           }} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest ml-1">Unique Username</label>
+            <div className="space-y-2.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Unique Username</label>
               <input 
                 name="username"
                 required
                 pattern="^[a-zA-Z0-9_]{3,20}$"
                 placeholder="e.g. ijaw_learner_123"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-white placeholder:text-zinc-600"
+                className="w-full bg-slate-950/50 border border-slate-800/50 rounded-xl px-4 py-4 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition-all text-slate-100 placeholder:text-slate-700 shadow-inner"
               />
-              <p className="text-[10px] text-zinc-400 ml-1">3-20 characters, letters, numbers, and underscores only.</p>
+              <p className="text-[10px] text-slate-600 font-medium ml-1">3-20 characters, lowercase letters, numbers, and underscores.</p>
             </div>
             
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest ml-1">Primary Dialect</label>
-              <select 
-                name="dialect"
-                required
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors appearance-none text-white"
-              >
-                <option value="">Select a dialect...</option>
-                {IJAW_DIALECTS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+            <div className="space-y-2.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Primary Dialect</label>
+              <div className="relative">
+                <select 
+                  name="dialect"
+                  required
+                  className="w-full bg-slate-950/50 border border-slate-800/50 rounded-xl px-4 py-4 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 appearance-none text-slate-100 transition-all shadow-inner cursor-pointer"
+                >
+                  <option value="" className="bg-slate-900">Select a dialect...</option>
+                  {IJAW_DIALECTS.map(d => <option key={d} value={d} className="bg-slate-900">{d}</option>)}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+              </div>
             </div>
             
             <button 
               type="submit"
               disabled={isSettingUpProfile}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-600/20"
+              className="w-full py-4 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-700/20"
             >
               {isSettingUpProfile ? "Setting up..." : "Save Profile"}
             </button>
@@ -1757,135 +1867,204 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans">
-      <Toaster position="top-center" theme="dark" />
-      
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-bottom border-zinc-800 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setSelectedDialect(null)}>
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-              <Languages className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="font-bold text-lg leading-tight">Ijaw Curator</h2>
-              {selectedDialect && <p className="text-xs text-indigo-400 font-medium uppercase tracking-wider">{selectedDialect}</p>}
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#060a12] text-slate-100 font-sans selection:bg-amber-500/20">
+      {/* Atmospheric glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full opacity-[0.04]" style={{background: 'radial-gradient(circle, #c9922a 0%, transparent 70%)'}} />
+        <div className="absolute bottom-[-5%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-[0.04]" style={{background: 'radial-gradient(circle, #1a6b6e 0%, transparent 70%)'}} />
+        <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full opacity-[0.025]" style={{background: 'radial-gradient(circle, #c9922a 0%, transparent 70%)'}} />
+      </div>
+      <Toaster position="top-center" theme="dark" richColors />
 
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setShowTutorial(true)}
-              onMouseEnter={playHover}
-              className="p-2 bg-zinc-900 text-zinc-400 hover:text-white rounded-lg transition-colors"
-              title="Start Tutorial"
-            >
-              <HelpCircle className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => setActiveTab(activeTab === 'social' ? 'curate' : 'social')}
-              onMouseEnter={playHover}
-              className={cn(
-                "p-2 rounded-lg transition-colors",
-                activeTab === 'social' ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 hover:text-white"
-              )}
-              title="Social Hub"
-            >
-              <UsersIcon className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => setActiveTab(activeTab === 'leaderboard' ? 'curate' : 'leaderboard')}
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-[#060a12]/95 backdrop-blur-xl border-b border-amber-900/20 shadow-sm shadow-black/50 z-40 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+
+          {/* Brand */}
+          <button
+            className="flex items-center gap-2.5 shrink-0 cursor-pointer group"
+            onClick={() => { setActiveTab('curate'); setSelectedDialect(null); }}
+          >
+            <div className="w-8 h-8 bg-amber-700 rounded-lg flex items-center justify-center shadow-md shadow-amber-700/30 group-hover:bg-amber-600 transition-colors">
+              <Languages className="w-4.5 h-4.5 text-white" />
+            </div>
+            <span className="font-bold text-base hidden sm:block" style={{fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, fontSize: '1.1rem', color: '#f0ede4'}}>Izonate</span>
+          </button>
+
+          {/* Primary Nav — center */}
+          <nav className="flex items-center gap-1">
+            <button
+              onClick={() => setActiveTab('curate')}
               onMouseEnter={playHover}
               className={cn(
-                "p-2 rounded-lg transition-colors",
-                activeTab === 'leaderboard' ? "bg-amber-600 text-white" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all",
+                activeTab === 'curate'
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
               )}
-              title="Leaderboard"
             >
-              <Trophy className="w-5 h-5" />
+              <Home className="w-4 h-4" />
+              <span className="hidden sm:inline">Home</span>
             </button>
-            <button 
-              onClick={() => setActiveTab(activeTab === 'gamification' ? 'curate' : 'gamification')}
-              onMouseEnter={playHover}
-              className={cn(
-                "p-2 rounded-lg transition-colors",
-                activeTab === 'gamification' ? "bg-orange-600 text-white" : "bg-zinc-900 text-zinc-400 hover:text-white"
-              )}
-              title="Streaks & Awards"
-            >
-              <Flame className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => setActiveTab(activeTab === 'history' ? 'curate' : 'history')}
-              onMouseEnter={playHover}
-              className={cn(
-                "p-2 rounded-lg transition-colors",
-                activeTab === 'history' ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 hover:text-white"
-              )}
-              title="Translation History"
-            >
-              <History className="w-5 h-5" />
-            </button>
-            <button 
+
+            <button
               id="chat-tab-btn"
-              onClick={() => setActiveTab(activeTab === 'chat' ? 'curate' : 'chat')}
+              onClick={() => setActiveTab('chat')}
               onMouseEnter={playHover}
               className={cn(
-                "p-2 rounded-lg transition-colors",
-                activeTab === 'chat' ? "bg-emerald-600 text-white" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all",
+                activeTab === 'chat'
+                  ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/30"
+                  : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
               )}
-              title="Interactive Chat"
             >
-              <MessageSquare className="w-5 h-5" />
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Chat</span>
             </button>
+
             {isAdmin && (
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setActiveTab(activeTab === 'admin' ? 'curate' : 'admin')}
+              <>
+                <button
+                  onClick={() => setActiveTab('vetting')}
                   onMouseEnter={playHover}
                   className={cn(
-                    "p-2 rounded-lg transition-colors",
-                    activeTab === 'admin' ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                    "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all",
+                    activeTab === 'vetting'
+                      ? "bg-amber-600 text-white shadow-sm shadow-amber-600/30"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
                   )}
-                  title="Admin Dashboard"
                 >
-                  <ShieldCheck className="w-5 h-5" />
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span className="hidden md:inline">Vetting</span>
                 </button>
-                <button 
-                  onClick={() => setActiveTab(activeTab === 'vetting' ? 'curate' : 'vetting')}
+                <button
+                  onClick={() => setActiveTab('admin')}
                   onMouseEnter={playHover}
                   className={cn(
-                    "p-2 rounded-lg transition-colors",
-                    activeTab === 'vetting' ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                    "flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all",
+                    activeTab === 'admin'
+                      ? "bg-amber-700 text-white shadow-sm shadow-amber-700/30"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
                   )}
-                  title="Vetting Queue"
                 >
-                  <CheckCircle2 className="w-5 h-5" />
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="hidden md:inline">Admin</span>
                 </button>
+              </>
+            )}
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Streak pill */}
+            {profile?.streak && profile.streak.current > 0 && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                <Flame className="w-3.5 h-3.5 text-orange-400" />
+                <span className="text-xs font-bold text-orange-300">{profile.streak.current}</span>
               </div>
             )}
-            <div className="flex items-center gap-3 pl-4 border-l border-zinc-800">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium">{user.displayName}</p>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{isAdmin ? 'admin' : 'user'}</p>
-              </div>
-              <button 
-                onClick={() => setSettingsModalOpen(true)} 
+
+            {/* More dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowMoreMenu(v => !v)}
                 onMouseEnter={playHover}
-                className="p-2 bg-zinc-900 text-zinc-400 hover:text-white rounded-lg transition-colors"
-                title="Profile Settings"
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                  showMoreMenu ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+                )}
+                aria-label="More options"
               >
-                <Settings className="w-5 h-5" />
+                <MoreHorizontal className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm">More</span>
               </button>
-              <button onClick={() => signOut(auth)} onMouseEnter={playHover} className="p-2 bg-zinc-900 hover:bg-red-900/20 text-zinc-400 hover:text-red-500 rounded-lg transition-all">
-                <LogOut className="w-5 h-5" />
-              </button>
+
+              <AnimatePresence>
+                {showMoreMenu && (
+                  <>
+                    {/* backdrop */}
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700/60 rounded-xl shadow-2xl shadow-black/40 z-50 overflow-hidden"
+                    >
+                      <div className="p-1.5 space-y-0.5">
+                        <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Explore</p>
+                        {[
+                          { label: 'Translation History', icon: History, tab: 'history' as const },
+                          { label: 'Community', icon: UsersIcon, tab: 'social' as const },
+                          { label: 'Leaderboard', icon: Trophy, tab: 'leaderboard' as const },
+                          { label: 'Achievements', icon: Star, tab: 'gamification' as const },
+                        ].map(({ label, icon: Icon, tab }) => (
+                          <button
+                            key={tab}
+                            onClick={() => { setActiveTab(tab); setShowMoreMenu(false); }}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left",
+                              activeTab === tab ? "bg-amber-700/20 text-amber-300" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                            )}
+                          >
+                            <Icon className="w-4 h-4 shrink-0" />
+                            {label}
+                          </button>
+                        ))}
+
+                        <div className="my-1 border-t border-slate-800" />
+                        <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Account</p>
+
+                        <button
+                          onClick={() => { setSettingsModalOpen(true); setShowMoreMenu(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left"
+                        >
+                          <Settings className="w-4 h-4 shrink-0" />
+                          Settings
+                        </button>
+
+                        <button
+                          onClick={() => { setShowTutorial(true); setShowMoreMenu(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left"
+                        >
+                          <HelpCircle className="w-4 h-4 shrink-0" />
+                          Tutorial
+                        </button>
+
+                        <div className="my-1 border-t border-slate-800" />
+                        <button
+                          onClick={() => signOut(auth)}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors text-left"
+                        >
+                          <LogOut className="w-4 h-4 shrink-0" />
+                          Sign out
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Avatar */}
+            <div
+              className="w-8 h-8 rounded-lg bg-amber-700/20 border border-amber-500/30 flex items-center justify-center cursor-pointer hover:border-amber-400/50 transition-colors shrink-0"
+              title={user.displayName || 'Profile'}
+              onClick={() => setSettingsModalOpen(true)}
+            >
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="avatar" className="w-full h-full rounded-lg object-cover" />
+              ) : (
+                <span className="text-xs font-bold text-amber-300">
+                  {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                </span>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6">
+      <main className="max-w-7xl mx-auto p-6 relative z-10">
         {activeTab === 'social' ? (
           <SocialSection profile={profile} />
         ) : activeTab === 'leaderboard' ? (
@@ -1894,10 +2073,10 @@ export default function App() {
           profile && <GamificationSection profile={profile} />
         ) : !selectedDialect ? (
           <div className="py-12">
-            <div className="mb-12 text-center max-w-2xl mx-auto">
-              <h1 className="text-4xl font-bold mb-4">Choose a Dialect</h1>
-              <p className="text-zinc-400 text-lg">Select the dialect you are most familiar with to start curating and correcting words.</p>
-            </div>
+          <div className="mb-12 text-center max-w-2xl mx-auto">
+            <h1 className="text-5xl font-semibold mb-4 text-[#f0ede4]" style={{fontFamily: "'Cormorant Garamond', serif"}}>Choose a Dialect</h1>
+            <p className="text-slate-400 text-lg font-medium">Select the dialect you are most familiar with to start curating and correcting words.</p>
+          </div>
             <DialectSelector onSelect={setSelectedDialect} />
           </div>
         ) : activeTab === 'vetting' ? (
@@ -1921,15 +2100,15 @@ export default function App() {
         ) : (
           <div className="space-y-8">
             {/* Controls */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-slate-900/30 p-4 rounded-xl border border-amber-900/20 shadow-sm backdrop-blur-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex bg-slate-950/50 p-1 rounded-xl border border-slate-800/50">
                   <button 
                     onClick={() => setCurateFilter('pending')}
                     onMouseEnter={playHover}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                      curateFilter === 'pending' ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                      "px-4 py-2 rounded-lg text-xs font-semibold transition-all",
+                      curateFilter === 'pending' ? "bg-amber-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                     )}
                   >
                     To Review
@@ -1938,23 +2117,23 @@ export default function App() {
                     onClick={() => setCurateFilter('all')}
                     onMouseEnter={playHover}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                      curateFilter === 'all' ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                      "px-4 py-2 rounded-lg text-xs font-semibold transition-all",
+                      curateFilter === 'all' ? "bg-slate-800 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                     )}
                   >
                     All
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+                <div className="flex items-center gap-1 bg-slate-950/50 p-1 rounded-xl border border-slate-800/50">
                   {(['easy', 'medium', 'hard'] as DifficultyLevel[]).map((level) => (
                     <button
                       key={level}
                       onClick={() => setDifficulty(level)}
                       onMouseEnter={playHover}
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all",
-                        difficulty === level ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                        "px-3 py-2 rounded-lg text-xs font-semibold capitalize transition-all",
+                        difficulty === level ? "bg-amber-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                       )}
                     >
                       {level}
@@ -1962,15 +2141,15 @@ export default function App() {
                   ))}
                 </div>
                 
-                <div className="flex items-center gap-2 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+                <div className="flex items-center gap-1 bg-slate-950/50 p-1 rounded-xl border border-slate-800/50">
                   {[5, 10, 20].map((count) => (
                     <button
                       key={count}
                       onClick={() => setGenCount(count)}
                       onMouseEnter={playHover}
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                        genCount === count ? "bg-emerald-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                        "px-3 py-2 rounded-lg text-xs font-semibold transition-all",
+                        genCount === count ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                       )}
                     >
                       {count}
@@ -1978,17 +2157,17 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="h-8 w-[1px] bg-zinc-800 mx-2 hidden sm:block" />
+                <div className="h-6 w-[1px] bg-slate-800 mx-1 hidden lg:block" />
 
                 <button 
                   id="generate-btn"
                   onClick={handleGenerate}
                   onMouseEnter={playHover}
                   disabled={isGenerating}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-medium transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20"
+                  className="px-4 py-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white text-sm rounded-xl font-medium transition-all flex items-center gap-2 shadow-sm shadow-amber-700/20"
                 >
                   {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  Generate Words
+                  Words
                 </button>
 
                 <button 
@@ -1996,40 +2175,41 @@ export default function App() {
                   onClick={handleGenerateSentences}
                   onMouseEnter={playHover}
                   disabled={isGenerating}
-                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl font-medium transition-all flex items-center gap-2 shadow-lg shadow-purple-600/20"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-sm rounded-xl font-medium transition-all flex items-center gap-2 shadow-sm shadow-purple-600/20"
                 >
                   {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
-                  Generate Sentences
+                  Sentences
                 </button>
 
                 <button 
                   id="add-entry-btn"
                   onClick={() => setAddModalOpen(true)}
                   onMouseEnter={playHover}
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-xl font-medium transition-all flex items-center gap-2 shadow-sm shadow-emerald-600/20"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Entry
+                  Manual Entry
                 </button>
                 <button 
                   id="keyboard-toggle"
                   onClick={() => setShowKeyboard(!showKeyboard)}
                   onMouseEnter={playHover}
+                  title="Toggle Virtual Keyboard"
                   className={cn(
-                    "p-2.5 rounded-xl border transition-all",
-                    showKeyboard ? "bg-zinc-800 border-indigo-500 text-indigo-400" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white"
+                    "p-2 rounded-xl border transition-all",
+                    showKeyboard ? "bg-slate-800 border-amber-500 text-amber-400" : "bg-slate-900/50 border-slate-700/50 text-slate-400 hover:text-white"
                   )}
                 >
                   <Keyboard className="w-5 h-5" />
                 </button>
               </div>
               
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <div className="relative w-full xl:w-64 shrink-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input 
                   type="text" 
                   placeholder="Search words..." 
-                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950/50 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-600"
                 />
               </div>
             </div>
@@ -2056,9 +2236,10 @@ export default function App() {
             </AnimatePresence>
 
             {/* Word Grid */}
+            <AnimatePresence mode="popLayout">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {words.map((word, idx) => (
-                <WordCard 
+                <WordCard
                   key={word.id} 
                   word={word} 
                   index={idx}
@@ -2116,17 +2297,19 @@ export default function App() {
                     }
                   }}
                   onAgree={handleAgreeCorrection}
+                  onUnflag={() => handleUnflag(word.id)}
                 />
               ))}
             </div>
+            </AnimatePresence>
 
             {words.length === 0 && !isGenerating && (
-              <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800">
-                <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <RefreshCw className="w-8 h-8 text-zinc-600" />
+              <div className="text-center py-20 bg-slate-900/40 rounded-xl border border-dashed border-slate-800/50 backdrop-blur-md">
+                <div className="w-16 h-16 bg-slate-800/50 rounded-xl flex items-center justify-center mx-auto mb-5 border border-slate-700/50 shadow-inner">
+                  <RefreshCw className="w-8 h-8 text-slate-600" />
                 </div>
-                <h3 className="text-xl font-medium text-zinc-300">No words found for this dialect</h3>
-                <p className="text-zinc-500 mt-2">Click the generate button to start building the dataset.</p>
+                <h3 className="text-2xl font-semibold text-[#f0ede4]" style={{fontFamily: "'Cormorant Garamond', serif"}}>No words found</h3>
+                <p className="text-slate-500 mt-2 font-medium uppercase text-[10px] tracking-widest">Select a dialect to begin generation</p>
               </div>
             )}
           </div>
@@ -2148,40 +2331,40 @@ export default function App() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-slate-900/90 backdrop-blur-xl border border-slate-800/50 rounded-xl shadow-2xl overflow-hidden"
             >
-              <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
-                <h3 className="text-xl font-bold">Add New Entry</h3>
-                <button onClick={() => setAddModalOpen(false)} onMouseEnter={playHover} className="p-2 hover:bg-zinc-800 rounded-lg">
+              <div className="p-6 border-b border-amber-900/20 flex justify-between items-center bg-slate-900/50">
+                <h3 className="text-2xl font-semibold text-[#f0ede4]" style={{fontFamily: "'Cormorant Garamond', serif"}}>Add New Entry</h3>
+                <button onClick={() => setAddModalOpen(false)} onMouseEnter={playHover} className="p-2 hover:bg-slate-800/50 rounded-lg text-slate-400 hover:text-slate-100 transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-5">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Word or Phrase (Ijaw)</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Word or Phrase (Ijaw)</label>
                   <input 
                     value={addForm.word}
                     onChange={(e) => setAddForm({ ...addForm, word: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-950/50 border border-slate-800/50 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all text-slate-200 placeholder:text-slate-600"
                     placeholder="e.g. I am going home"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Meaning (English)</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Meaning (English)</label>
                   <input 
                     value={addForm.meaning}
                     onChange={(e) => setAddForm({ ...addForm, meaning: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-950/50 border border-slate-800/50 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all text-slate-200 placeholder:text-slate-600"
                     placeholder="e.g. I am going home"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Pronunciation Guide</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Pronunciation Guide</label>
                   <input 
                     value={addForm.pronunciation}
                     onChange={(e) => setAddForm({ ...addForm, pronunciation: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-950/50 border border-slate-800/50 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all text-slate-200 placeholder:text-slate-600 font-mono text-sm"
                     placeholder="Phonetic guide"
                   />
                 </div>
@@ -2189,7 +2372,7 @@ export default function App() {
                 <button 
                   onClick={handleAddSubmit}
                   onMouseEnter={playHover}
-                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all mt-4"
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all mt-4 shadow-lg shadow-emerald-600/20 border border-transparent"
                 >
                   Submit for Vetting
                 </button>
@@ -2214,11 +2397,11 @@ export default function App() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-2xl bg-slate-900/90 backdrop-blur-xl border border-slate-800/50 rounded-xl shadow-2xl overflow-hidden"
             >
-              <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
-                <h3 className="text-xl font-bold">Profile Settings</h3>
-                <button onClick={() => setSettingsModalOpen(false)} onMouseEnter={playHover} className="p-2 hover:bg-zinc-800 rounded-lg">
+              <div className="p-6 border-b border-amber-900/20 flex justify-between items-center bg-slate-900/50">
+                <h3 className="text-2xl font-semibold text-[#f0ede4]" style={{fontFamily: "'Cormorant Garamond', serif"}}>Profile Settings</h3>
+                <button onClick={() => setSettingsModalOpen(false)} onMouseEnter={playHover} className="p-2 hover:bg-slate-800/50 rounded-lg text-slate-400 hover:text-slate-100 transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -2226,10 +2409,10 @@ export default function App() {
               <div className="p-8 space-y-8">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 mb-2">
-                    <Languages className="w-5 h-5 text-indigo-400" />
-                    <h4 className="font-bold text-zinc-300 uppercase tracking-widest text-sm">Preferred Dialect</h4>
+                    <Languages className="w-5 h-5 text-amber-400" />
+                    <h4 className="font-bold text-slate-300 uppercase tracking-widest text-xs">Preferred Dialect</h4>
                   </div>
-                  <p className="text-zinc-500 text-sm">Setting a preferred dialect will automatically filter content and default your selections when you log in.</p>
+                  <p className="text-slate-500 text-sm">Setting a preferred dialect will automatically filter content and default your selections when you log in.</p>
                   
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {IJAW_DIALECTS.map((dialect) => (
@@ -2240,8 +2423,8 @@ export default function App() {
                         className={cn(
                           "px-4 py-3 rounded-xl border text-sm font-medium transition-all",
                           profile?.preferredDialect === dialect 
-                            ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
-                            : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-white"
+                            ? "bg-amber-700 border-amber-500 text-white shadow-lg shadow-amber-700/20" 
+                            : "bg-slate-950/50 border-slate-800/50 text-slate-400 hover:border-amber-500/30 hover:text-white"
                         )}
                       >
                         {dialect}
@@ -2250,18 +2433,22 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-zinc-800">
-                  <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-2xl border border-zinc-700">
+                <div className="pt-4 border-t border-slate-800/50">
+                  <div className="flex items-center justify-between p-5 bg-slate-950/50 rounded-xl border border-slate-800/50 shadow-inner">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-zinc-700 rounded-full flex items-center justify-center">
-                        <UserIcon className="w-6 h-6 text-zinc-400" />
+                      <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800/50">
+                        {user.photoURL ? (
+                          <img src={user.photoURL} className="w-full h-full rounded-xl object-cover" alt="" />
+                        ) : (
+                          <UserIcon className="w-6 h-6 text-slate-500" />
+                        )}
                       </div>
                       <div>
-                        <p className="font-bold text-white">{user.displayName}</p>
-                        <p className="text-sm text-zinc-500">{user.email}</p>
+                        <p className="font-bold text-slate-100">{user.displayName}</p>
+                        <p className="text-xs text-slate-500">{user.email}</p>
                       </div>
                     </div>
-                    <div className="px-3 py-1 bg-zinc-700 rounded-lg text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    <div className="px-3 py-1 bg-slate-800/50 border border-slate-700/50 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-400">
                       {isAdmin ? 'Admin Access' : 'Standard User'}
                     </div>
                   </div>
