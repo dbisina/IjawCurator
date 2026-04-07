@@ -520,7 +520,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                   style={{ fontFamily: "'Inter', sans-serif", letterSpacing: '0.3em' }}
                   className="text-[11px] font-semibold text-[#c9922a] uppercase"
                 >
-                  Niger Delta · Bayelsa · Rivers · Delta State
+                  Niger Delta: Bayelsa · Rivers · Delta State · Edo · Ondo · Akwa Ibom
                 </motion.p>
 
                 {/* Main headline */}
@@ -531,8 +531,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                   style={{ fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.05 }}
                   className="text-[clamp(3rem,9vw,7.5rem)] font-bold text-[#f0ede4] max-w-3xl"
                 >
-                  Toru bo,<br />
-                  <span style={{ color: '#c9922a', fontStyle: 'italic' }}>keme piri.</span>
+                  Woni ama,<br />
+                  <span style={{ color: '#c9922a', fontStyle: 'italic' }}>woni igho.</span>
                 </motion.h1>
 
                 {/* Translation */}
@@ -543,7 +543,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                   style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic' }}
                   className="text-[#8b9bb4] text-xl"
                 >
-                  "The river speaks — listen to it."
+                  "Our language, our wealth."
                 </motion.p>
 
                 {/* Body text */}
@@ -554,8 +554,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                   className="text-[#c4bfb4] text-lg leading-relaxed max-w-xl font-light"
                 >
                   The Ijaw people have spoken their language for over five thousand years.
-                  Izonate exists so their great-grandchildren will too — crowdsourcing
+                  Izonate exists so their great-grandchildren will too, crowdsourcing
                   every word, every dialect, every voice into a living archive for all eternity.
+
                 </motion.p>
 
                 {/* CTA buttons */}
@@ -636,28 +637,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
           </FadeIn>
 
           <FadeIn delay={0.2} className="order-1 lg:order-2 space-y-8">
-            <p style={{ letterSpacing: '0.3em', fontSize: '10px' }} className="text-[#c9922a] uppercase font-semibold">The People of the Waters</p>
+            <p style={{ letterSpacing: '0.3em', fontSize: '10px' }} className="text-[#c9922a] uppercase font-semibold">The People of the Izon</p>
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.1 }} className="text-[clamp(2.2rem,5vw,4rem)] font-bold text-[#f0ede4]">
-              Africa's oldest river<br />civilization still lives.
+              Africa's oldest living<br />civilization still speaks.
             </h2>
             <div className="space-y-4 text-[#a09890] text-base leading-relaxed font-light">
               <p>
-                The Ijaw — Izon in their own tongue, have inhabited the Niger Delta
-                since before 3000 BCE. Archaeologists have found their settlements along
-                these creeks for over 3,000 years. Linguists date the Ijoid language
+                The Ijaw-Izon in their own tongue, have inhabited the Niger Delta
+                since before 3000 BCE. For over five millennia, their voices have 
+                carried the history of a people. Linguists date the Ijoid language
                 family to at least 5,000 years of independent evolution, making it one of
-                the oldest language branches in all of Africa.
+                the oldest and most unique language branches in all of Africa.
               </p>
               <p>
-                They are the water people. Their gods live beneath the rivers — <em style={{ color: '#c4bfb4' }}>Woyingi</em>,
-                the creator mother who fashioned humanity from clay; <em style={{ color: '#c4bfb4' }}>Egbesu</em>, guardian
-                of truth and justice. Their masquerades, the <em style={{ color: '#c4bfb4' }}>Owu</em>, dance at the
-                intersection of the spirit world and this one.
+                They are a people of deep tradition. Their legacy is etched in their 
+                proverbs and oral histories, <em style={{ color: '#c4bfb4' }}>Woyingi</em>,
+                the creator mother; <em style={{ color: '#c4bfb4' }}>Egbesu</em>, guardian
+                of truth and justice. Their masquerades, the <em style={{ color: '#c4bfb4' }}>Owu</em>, are living 
+                embodiments of an ancient heritage that must not be forgotten.
               </p>
               <p>
-                Today, 14 million Ijaw people speak 16 distinct dialects. Without
-                active preservation, several of those dialects could fall silent
-                within a generation.
+                Today, 14 million Ijaw people speak 16 distinct dialects. But 
+                intergenerational transmission is fading. Without active 
+                preservation, several of those dialects will fall silent 
+                forever within our lifetime.
               </p>
             </div>
             <div style={{ width: '48px', height: '2px', background: '#c9922a' }} />
@@ -675,9 +678,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
           <FadeIn delay={0.1}>
             <blockquote style={{ fontFamily: "'Cormorant Garamond', serif", lineHeight: 1.3, color: '#f0ede4' }}
               className="text-[clamp(1.8rem,4.5vw,3.5rem)] font-light italic">
-              "A language lost is not just a vocabulary gone - 
-              it is a way of seeing the world, a relationship with
-              the water, a name for the wind that no one will
+              "A language lost is not just a vocabulary gone,
+              it is a way of seeing the world, a connection to 
+              ancestry, a name for existence that no one will
               ever say again."
             </blockquote>
           </FadeIn>
@@ -711,19 +714,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px" style={{ background: 'rgba(255,255,255,0.05)' }}>
             {[
               {
-                icon: '🌊',
+                icon: '📜',
                 title: 'The Children',
-                body: 'Right now, Ijaw children are growing up in cities, in schools that teach in English. Without materials, without recordings, without dictionaries — they have no bridge back to their ancestors\' tongue.',
+                body: 'Right now, Ijaw children are growing up in cities, in schools that teach in English. Without materials, without recordings, without dictionaries, they have no bridge back to their ancestral heritage.',
               },
               {
-                icon: '🥁',
+                icon: '🗣️',
                 title: 'The Oral Tradition',
-                body: 'Ijaw culture lives in the voice — in the masquerade chants, in funeral songs, in the names for currents in specific creeks. Text alone cannot preserve it. Voice recordings can.',
+                body: 'Ijaw culture lives in the voice, in the ancient stories, in funeral songs, in the wisdom of ancestral voices. Text alone cannot preserve it. Voice recordings can.',
               },
               {
-                icon: '⚖️',
+                icon: '🛡️',
                 title: 'The Dialects',
-                body: 'Kolokuma. Nembe. Zarama. Kabowei. Each is a distinct world. Several have fewer than 10,000 living speakers. Every verified word in this dataset is a brick in a firewall against extinction.',
+                body: 'Kolokuma. Nembe. Zarama. Kabowei. Each is a distinct world. Several have fewer than 10,000 living speakers. Every verified word in this dataset is a brick in a firewall against language death.',
               },
             ].map((card, i) => (
               <FadeIn key={i} delay={i * 0.12}>
@@ -808,7 +811,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
           </FadeIn>
           <FadeIn delay={0.15}>
             <p className="text-[#a09890] text-lg font-light max-w-xl mx-auto leading-relaxed">
-              Every word you verify, every dialect you record, every correction you contribute —
+              Every word you verify, every dialect you record, every correction you contribute
               it all flows into a dataset that will outlive us. The Ijaw language will be spoken
               by a child a thousand years from now. Help make that possible.
             </p>
@@ -842,7 +845,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
           </div>
           <div className="text-center">
             <p style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', color: '#8b9bb4', fontSize: '0.9rem' }}>
-              "Woyingi created us from the waters of the Niger Delta.<br />Let our words flow forever."
+              "Woyingi gave us the gift of speech to carry our history.<br />Let our ancestral voices echo forever."
             </p>
           </div>
           <p className="text-[#4a5568] text-xs text-right">
@@ -854,3 +857,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
     </div>
   );
 };
+;
+;
+;

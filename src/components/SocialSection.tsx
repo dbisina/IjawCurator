@@ -383,7 +383,7 @@ export const SocialSection: React.FC<SocialSectionProps> = ({ profile }) => {
             transition={{ duration: 0.2 }}
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Left Column: Search & Pending */}
+              {/* Left Column: Search and Pending */}
               <div className="md:col-span-1 space-y-8">
                 {/* Search */}
                 <section className="bg-slate-900/40 border border-slate-800/50 p-6 rounded-xl flex flex-col gap-5 shadow-lg">

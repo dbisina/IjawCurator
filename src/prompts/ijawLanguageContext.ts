@@ -276,17 +276,15 @@ Priority vocabulary domains (in order of documentation importance):
    uncle (father's brother vs. mother's brother are typically distinct in Izon), aunt,
    first child (special term in many dialects), co-wife (polygamous household term).
 
-4. NATURE/ENVIRONMENT: Water/river (toru), fish (ibe), mangrove, tide, creek, sea, rain,
-   sun, moon, star, dry season, rainy season, mud, sand, forest, bird, snake, crocodile.
+4. NATURE/ENVIRONMENT: Earth/soil, forest, sun, moon, star, rain, wind, mountain, tree, bird, snake, crocodile, water/river (toru), fish (ibe).
 
-5. VERBS OF MOTION: Go, come, run, walk, swim, paddle, carry, bring, return, enter, exit,
-   cross (a river), float, sink.
+5. VERBS OF MOTION: Go, come, run, walk, carry, bring, return, enter, exit, jump, climb, swim, paddle.
 
 6. TIME EXPRESSIONS: Morning, afternoon, evening, night, today, yesterday, tomorrow, week,
-   month, year, dry season, rainy season, sunrise, sunset.
+   month, year, dry season, rainy season, sunrise, sunset, old age, youth.
 
-7. TRADE VOCABULARY (historically significant): Buy, sell, barter, price, profit, loss,
-   market, canoe-load (unit of measurement).
+7. TRADE AND SOCIAL VOCABULARY: Buy, sell, barter, price, profit, market, community, 
+   leadership, justice, peace, war, marriage, birth, inheritance.
 
 8. GREETINGS AND DISCOURSE MARKERS: Hello (varies by time of day), goodbye, thank you,
    yes, no, please, sorry, welcome, how are you, I am fine.

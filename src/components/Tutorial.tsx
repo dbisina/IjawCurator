@@ -97,7 +97,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ steps, onComplete, isOpen })
               <Info className="w-4 h-4" />
               <span className="text-xs font-bold uppercase tracking-widest">Step {currentStep + 1} of {steps.length}</span>
             </div>
-            <button onClick={onComplete} className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-slate-800 rounded-lg">
+            <button onClick={onComplete} title="Close tutorial" aria-label="Close tutorial" className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-slate-800 rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
