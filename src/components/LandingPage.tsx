@@ -532,7 +532,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                   className="text-[clamp(3rem,9vw,7.5rem)] font-bold text-[#f0ede4] max-w-3xl"
                 >
                   Woni ama,<br />
-                  <span style={{ color: '#c9922a', fontStyle: 'italic' }}>woni igho.</span>
+                  <span style={{ color: '#c9922a', fontStyle: 'italic' }}>woni igoh.</span>
                 </motion.h1>
 
                 {/* Translation */}
