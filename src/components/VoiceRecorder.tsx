@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Play, Trash2, Upload, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
@@ -31,6 +31,23 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  // Fix #2: store stream in ref so tracks can be stopped independently of mediaRecorder
+  const streamRef = useRef<MediaStream | null>(null);
+  // Fix #6: track recording start time to enforce minimum duration
+  const recordingStartTime = useRef<number | null>(null);
+
+  // Fix #3: cleanup on unmount — stop tracks and recorder if still active
+  useEffect(() => {
+    return () => {
+      if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
+        mediaRecorder.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   const startRecording = async () => {
     try {
@@ -41,19 +58,21 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+      // Fix #2: store stream in ref for safe cleanup
+      streamRef.current = stream;
+
       // Check for supported mime types with better cross-browser support
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-        ? 'audio/webm;codecs=opus' 
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
           ? 'audio/webm'
           : MediaRecorder.isTypeSupported('audio/mp4')
             ? 'audio/mp4'
             : 'audio/ogg';
-            
+
       console.log(`[VoiceRecorder] Starting recording with mimeType: ${mimeType}`);
-      
-      mediaRecorder.current = new MediaRecorder(stream, { 
+
+      mediaRecorder.current = new MediaRecorder(stream, {
         audioBitsPerSecond: 128000, // Slightly higher quality
         mimeType
       });
@@ -66,15 +85,26 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
         }
       };
 
+      // Fix #1: move track cleanup into onstop so it runs AFTER blob is created
       mediaRecorder.current.onstop = () => {
         const blob = new Blob(chunks.current, { type: mimeType });
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
         setAudioUrl(url);
         console.log(`[VoiceRecorder] Recording stopped. Final blob size: ${(blob.size / 1024).toFixed(2)} KB (${mimeType})`);
+        // Safe to stop tracks now that blob is assembled
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => {
+            track.stop();
+            console.log(`[VoiceRecorder] Track stopped: ${track.label}`);
+          });
+          streamRef.current = null;
+        }
       };
 
       mediaRecorder.current.start(1000); // Collect data every second for better reliability
+      // Fix #6: record start time for minimum duration check
+      recordingStartTime.current = Date.now();
       setIsRecording(true);
     } catch (err) {
       console.error("[VoiceRecorder] Error accessing microphone:", err);
@@ -84,13 +114,28 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
 
   const stopRecording = () => {
     if (mediaRecorder.current && isRecording) {
+      // Fix #5: enforce minimum recording duration of 500ms
+      const duration = recordingStartTime.current ? Date.now() - recordingStartTime.current : 0;
+      if (duration < 500) {
+        toast.error("Recording too short — hold the button longer.");
+        // Still stop the recorder and clean up, but don't produce a blob for upload
+        mediaRecorder.current.ondataavailable = null;
+        mediaRecorder.current.onstop = () => {
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+          }
+        };
+        mediaRecorder.current.stop();
+        setIsRecording(false);
+        recordingStartTime.current = null;
+        return;
+      }
       console.log("[VoiceRecorder] Stopping recording...");
+      // Fix #1: track cleanup now happens inside onstop, not here
       mediaRecorder.current.stop();
       setIsRecording(false);
-      mediaRecorder.current.stream.getTracks().forEach(track => {
-        track.stop();
-        console.log(`[VoiceRecorder] Track stopped: ${track.label}`);
-      });
+      recordingStartTime.current = null;
     }
   };
 
@@ -126,7 +171,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ wordId, dialect, o
       const storageRef = ref(storage, filename);
       
       const metadata = {
-        contentType: audioBlob.type,
+        // Fix #4: strip codec params (e.g. 'audio/webm;codecs=opus' → 'audio/webm')
+        // Firebase Storage rejects contentType strings containing semicolons
+        contentType: audioBlob.type.split(';')[0],
         customMetadata: {
           'wordId': wordId || 'chat',
           'userId': auth.currentUser.uid,

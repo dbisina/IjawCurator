@@ -11,6 +11,14 @@ service firebase.storage {
                    && request.resource.contentType.matches('audio/.*');
     }
 
+    // Chat session audio: authenticated users can upload to their own folder
+    match /chat_sessions/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024  // 10MB max
+                   && request.resource.contentType.matches('audio/.*');
+    }
+
     // Deny everything else by default
     match /{allPaths=**} {
       allow read, write: if false;

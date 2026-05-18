@@ -38,4 +38,5 @@ export const SPECIAL_CHARS: Record<string, string[]> = {
   "y": ["ý", "ÿ", "ŷ"]
 };
 
-export const AGREEMENT_THRESHOLD = 7;
+export const AGREEMENT_THRESHOLD = 3;
+export const REJECTION_THRESHOLD = 3;

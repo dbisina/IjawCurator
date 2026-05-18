@@ -49,6 +49,8 @@ export interface WordEntry {
   createdAt: any;
   isAiGenerated: boolean;
   audioUrl?: string;
+  upvotes?: string[];
+  downvotes?: string[];
 }
 
 export interface CorrectionEntry {
@@ -67,4 +69,10 @@ export interface CorrectionEntry {
   status: 'pending' | 'approved' | 'rejected';
   audioUrl?: string;
   agreedBy?: string[];
+  downvotedBy?: string[];
+}
+
+export interface VoteRecord {
+  upvotes: string[];
+  downvotes: string[];
 }

@@ -1,5 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&display=swap');
 @import "tailwindcss";
+
+:root {
+  --color-bg: #060a12;
+  --color-surface: rgba(15, 20, 35, 0.8);
+  --color-primary: #c9922a;
+  --color-primary-bright: #d4a836;
+  --color-success: #2a9d8f;
+  --color-error: #e63946;
+  --color-text: #f0ede4;
+  --color-text-secondary: #8b8680;
+  --color-text-muted: rgba(240, 237, 228, 0.3);
+  --color-border: rgba(201, 146, 42, 0.15);
+  --color-border-active: rgba(201, 146, 42, 0.4);
+}
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
@@ -23,3 +37,30 @@
 ::-webkit-scrollbar-track { background: #060a12; }
 ::-webkit-scrollbar-thumb { background: #2a2018; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #c9922a40; }
+
+.font-serif {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.glass-card {
+  background: var(--color-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+}
+
+.vote-btn-up {
+  @apply flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border;
+  @apply bg-slate-800/50 border-slate-700/50 text-slate-500 hover:text-emerald-400 hover:border-emerald-500/30;
+}
+.vote-btn-up.voted {
+  @apply bg-emerald-600/20 border-emerald-500/40 text-emerald-400;
+}
+.vote-btn-down {
+  @apply flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border;
+  @apply bg-slate-800/50 border-slate-700/50 text-slate-500 hover:text-red-400 hover:border-red-500/30;
+}
+.vote-btn-down.voted {
+  @apply bg-red-600/20 border-red-500/40 text-red-400;
+}
